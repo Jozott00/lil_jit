@@ -1,31 +1,42 @@
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_while1};
 use nom::character::complete::multispace0;
-use nom::character::is_alphabetic;
+use nom::combinator::{complete, eof};
 use nom::error::Error;
 use nom::IResult;
 use nom::multi::{many0, separated_list0};
 use nom::sequence::tuple;
 use nom_locate::LocatedSpan;
 use crate::ast::{Expr, FuncDec, Identifier, Program, Stmt};
+use crate::ast::Expr::IdentifierExpr;
 use crate::ast::Stmt::{Assignment, ExprStmt, For, If};
 use crate::location::Location;
 
 type Span<'a> = LocatedSpan<&'a str>;
 
-pub fn parse_program(input: Span) -> IResult<Span, Program, Error<Span>> {
+// FIXME: Maybe we should return a custom error here
+pub fn parse_lil_program(source: &str) -> Result<Program, String> {
+    let input = Span::new(source);
+    match parse_program(input) {
+        Ok((_, program)) => Ok(program),
+        Err(e) => Err(e.to_string())
+    }
+}
+
+fn parse_program(input: Span) -> IResult<Span, Program, Error<Span>> {
+    let (input, _) = multispace0(input)?;
     let (input, funcs) = many0(parse_function_declaration)(input)?;
-    
-    // FIXME: it doesn't feel right to return the string here
+    eof(input)?;
+
     Ok((input, Program{
         functions: funcs,
     }))
 }
 
 fn parse_function_declaration(input: Span) -> IResult<Span, FuncDec> {
-    let (input, (_, _, ident, _, _, _)) = tuple((tag("fun"), multispace0, parse_identifier, multispace0, tag("("), multispace0,))(input)?;
+    let (input, (_, _, ident, _, _, _)) = tuple((tag("fn"), multispace0, parse_identifier, multispace0, tag("("), multispace0,))(input)?;
 
-    let (input, args) = separated_list0(tag(","), parse_identifier)(input)?;
+    let (input, args) = separated_list0(tuple((multispace0, tag(","), multispace0)), parse_identifier)(input)?;
 
     let (input, (_, _, _, block)) = tuple((multispace0, tag(")"), multispace0, parse_block))(input)?;
 
@@ -97,11 +108,6 @@ fn parse_for(input: Span) -> IResult<Span, Stmt> {
     ))
 }
 
-
-fn parse_expr(input: Span) -> IResult<Span, Expr> {
-    todo!();
-}
-
 fn parse_block(input: Span) -> IResult<Span, Vec<Stmt>> {
     // Single statement blocks
     // Example: if false: return 666
@@ -119,6 +125,18 @@ fn parse_block(input: Span) -> IResult<Span, Vec<Stmt>> {
     return Ok((input, stmts))
 }
 
+fn parse_expr(input: Span) -> IResult<Span, Expr> {
+    let(input, expr) = alt((
+        parse_identifier_expr,
+        ))(input)?;
+
+    return Ok((input, expr))
+}
+
+fn parse_identifier_expr(input: Span) -> IResult<Span, Expr> {
+    let (input, ident) = parse_identifier(input)?;
+    Ok((input, IdentifierExpr(ident)))
+}
 
 fn parse_identifier(input: Span) -> IResult<Span, Identifier> {
     let (input, name) = take_while1(|c: char| c.is_alphabetic())(input)?;

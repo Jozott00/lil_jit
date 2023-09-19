@@ -29,6 +29,7 @@ pub enum Expr<'a> {
     StringLiteral(&'a str, Location),
     FunctionCall(FunctionCallData<'a>, Location),
     BinaryExpr(Box<Expr<'a>>, BinaryOp, Box<Expr<'a>>),
+    IdentifierExpr(Identifier<'a>)
 }
 
 #[derive(Debug, PartialEq)]
