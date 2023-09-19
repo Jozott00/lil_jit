@@ -6,10 +6,14 @@ use nom::error::Error;
 use nom::IResult;
 use nom::multi::{many0, separated_list0};
 use nom::sequence::tuple;
+use nom_locate::LocatedSpan;
 use crate::ast::{Expr, FuncDec, Identifier, Program, Stmt};
 use crate::ast::Stmt::{Assignment, ExprStmt, For, If};
+use crate::location::Location;
 
-pub fn parse_program(input: &str) -> IResult<&str, Program, Error<&str>> {
+type Span<'a> = LocatedSpan<&'a str>;
+
+pub fn parse_program(input: Span) -> IResult<Span, Program, Error<Span>> {
     let (input, funcs) = many0(parse_function_declaration)(input)?;
     
     // FIXME: it doesn't feel right to return the string here
@@ -18,7 +22,7 @@ pub fn parse_program(input: &str) -> IResult<&str, Program, Error<&str>> {
     }))
 }
 
-fn parse_function_declaration(input: &str) -> IResult<&str, FuncDec> {
+fn parse_function_declaration(input: Span) -> IResult<Span, FuncDec> {
     let (input, (_, _, ident, _, _, _)) = tuple((tag("fun"), multispace0, parse_identifier, multispace0, tag("("), multispace0,))(input)?;
 
     let (input, args) = separated_list0(tag(","), parse_identifier)(input)?;
@@ -32,7 +36,7 @@ fn parse_function_declaration(input: &str) -> IResult<&str, FuncDec> {
     }))
 }
 
-fn parse_stmt(input: &str) -> IResult<&str, Stmt> {
+fn parse_stmt(input: Span) -> IResult<Span, Stmt> {
     // So this function should not eat the trailing newline, because for likes to not need a
     // newline.
     let (input, stmt) = (alt((
@@ -40,24 +44,26 @@ fn parse_stmt(input: &str) -> IResult<&str, Stmt> {
         parse_if,
         parse_for,
         parse_expr_stmt,
-        ))(input)?;
+        )))(input)?;
 
     Ok((input, stmt))
 }
 
-fn parse_expr_stmt(input: &str) -> IResult<&str, Stmt> {
+fn parse_expr_stmt(input: Span) -> IResult<Span, Stmt> {
     let (input, expr) = parse_expr(input)?;
 
     Ok((input, ExprStmt(expr)))
 }
 
-fn parse_assignment(input: &str) -> IResult<&str, Stmt> {
-    let (input, (_, _, name, _, _, _, expr)) = tuple((tag("let"), multispace0, parse_identifier, multispace0, tag("="), multispace0, parse_expr))(input)?;
+fn parse_assignment(input: Span) -> IResult<Span, Stmt> {
+    let (input, (start, _, name, _, _, _, expr)) = tuple((tag("let"), multispace0, parse_identifier, multispace0, tag("="), multispace0, parse_expr))(input)?;
+
+    start.fragment();
 
     Ok((input, Assignment(name, expr)))
 }
 
-fn parse_if(input: &str) -> IResult<&str, Stmt> {
+fn parse_if(input: Span) -> IResult<Span, Stmt> {
     // FIXME: Also parse the else branch if it exists
     let (input, (_, _, cond, _, block)) = tuple((tag("if"), multispace0, parse_expr, multispace0, parse_block))(input)?;
 
@@ -67,7 +73,7 @@ fn parse_if(input: &str) -> IResult<&str, Stmt> {
     ))
 }
 
-fn parse_for(input: &str) -> IResult<&str, Stmt> {
+fn parse_for(input: Span) -> IResult<Span, Stmt> {
     // FIXME: There must be betterway than just inserting a f*ck-load of multispace0
     let (input, (_, _, pre, _, _, _,  cond, _, _, _,post, _,  block)) = tuple((
         tag("for"),
@@ -87,16 +93,16 @@ fn parse_for(input: &str) -> IResult<&str, Stmt> {
 
     Ok((
         input,
-        For(pre, cond, post , block)
+        For(Box::new(pre), cond, Box::new(post) , block)
     ))
 }
 
 
-fn parse_expr(input: &str) -> IResult<&str, Expr> {
-    todo!;
+fn parse_expr(input: Span) -> IResult<Span, Expr> {
+    todo!();
 }
 
-fn parse_block(input: &str) -> IResult<&str, Vec<Stmt>> {
+fn parse_block(input: Span) -> IResult<Span, Vec<Stmt>> {
     // Single statement blocks
     // Example: if false: return 666
     if input.starts_with(":") {
@@ -114,7 +120,7 @@ fn parse_block(input: &str) -> IResult<&str, Vec<Stmt>> {
 }
 
 
-fn parse_identifier(input: &str) -> IResult<&str, Identifier> {
-    let (input, name) = take_while1(is_alphabetic)(input)?;
-    Ok((input, Identifier{ name }))
+fn parse_identifier(input: Span) -> IResult<Span, Identifier> {
+    let (input, name) = take_while1(|c: char| c.is_alphabetic())(input)?;
+    Ok((input, Identifier{ name: name.fragment(), location: Location::from_span(&name) }))
 }

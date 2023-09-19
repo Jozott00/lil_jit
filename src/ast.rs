@@ -1,4 +1,4 @@
-use std::panic::Location;
+use crate::location::Location;
 
 #[derive(Debug, PartialEq)]
 pub struct Program<'a> {
@@ -18,16 +18,16 @@ pub enum Stmt<'a> {
     If(Expr<'a>, Vec<Stmt<'a>>, Option<Vec<Stmt<'a>>>),
 
     // FIXME: the pre and post stmt should be optional
-    For(Stmt<'a>, Expr<'a>, Stmt<'a>, Vec<Stmt<'a>>),
+    For(Box<Stmt<'a>>, Expr<'a>, Box<Stmt<'a>>, Vec<Stmt<'a>>),
     ExprStmt(Expr<'a>),
 }
 
 
 #[derive(Debug, PartialEq)]
 pub enum Expr<'a> {
-    IntegerLiteral(i64, Location<'a>),
-    StringLiteral(&'a str, Location<'a>),
-    FunctionCall(FunctionCallData<'a>, Location<'a>),
+    IntegerLiteral(i64, Location),
+    StringLiteral(&'a str, Location),
+    FunctionCall(FunctionCallData<'a>, Location),
     BinaryExpr(Box<Expr<'a>>, BinaryOp, Box<Expr<'a>>),
 }
 
@@ -50,4 +50,5 @@ pub struct FunctionCallData<'a> {
 #[derive(Debug, PartialEq)]
 pub struct Identifier<'a> {
     pub name: &'a str,
+    pub location: Location
 }
