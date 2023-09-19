@@ -2,7 +2,7 @@ use std::panic::Location;
 
 #[derive(Debug, PartialEq)]
 pub struct Program<'a> {
-    functions: Vec<FuncDec<'a>>
+    pub(crate) functions: Vec<FuncDec<'a>>
 }
 
 #[derive(Debug, PartialEq)]
@@ -16,6 +16,9 @@ pub struct FuncDec<'a> {
 pub enum Stmt<'a> {
     Assignment(Identifier<'a>, Expr<'a>),
     If(Expr<'a>, Vec<Stmt<'a>>, Option<Vec<Stmt<'a>>>),
+
+    // FIXME: the pre and post stmt should be optional
+    For(Stmt<'a>, Expr<'a>, Stmt<'a>, Vec<Stmt<'a>>),
     ExprStmt(Expr<'a>),
 }
 
@@ -40,12 +43,11 @@ pub enum BinaryOp {
 
 #[derive(Debug, PartialEq)]
 pub struct FunctionCallData<'a> {
-    function_name: Identifier<'a>,
-    arguments: Vec<Expr<'a>>,
+    pub function_name: Identifier<'a>,
+    pub arguments: Vec<Expr<'a>>,
 }
 
 #[derive(Debug, PartialEq)]
 pub struct Identifier<'a> {
-    name: &'a str,
-    location: Location<'a>,
+    pub name: &'a str,
 }

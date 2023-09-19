@@ -25,7 +25,7 @@ fn fib(n) {
     
 fn main() {
     showtextln("The first 100 fibonacci numbers:")
-    for i = 0; i < 100; i++: showln(fib(i))
+    for let i = 0; i < 100; i++: showln(fib(i))
 }
 ```
 
