@@ -1,7 +1,7 @@
 use std::cmp::{max, min};
 use nom_locate::LocatedSpan;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub struct Location {
     pub start_offset: usize,
     pub end_offset: usize,
@@ -18,7 +18,7 @@ impl Location {
         }
     }
 
-    pub fn merge(&self, other: Location) -> Location {
+    pub fn merge(&self, other: &Location) -> Location {
         Location {
             start_offset: min(self.start_offset, other.start_offset),
             end_offset: max(self.end_offset, other.end_offset),
