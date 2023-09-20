@@ -1,4 +1,3 @@
-use std::fmt::{Binary, Display, format, Formatter};
 use std::fmt;
 use crate::location::Location;
 

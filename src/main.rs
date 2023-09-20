@@ -1,10 +1,5 @@
-use crate::parser::{parse_lil_program};
-
-mod parser;
-mod ast;
-mod location;
-mod error;
-mod chekcer;
+use lil_jit;
+use lil_jit::parser::parse_lil_program;
 
 fn main() {
     // let code = r#"
