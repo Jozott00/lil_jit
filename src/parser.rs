@@ -1,6 +1,6 @@
 use nom::branch::alt;
 use nom::bytes::complete::{tag, tag_no_case, take_until, take_while1};
-use nom::character::complete::{char, digit1, multispace0};
+use nom::character::complete::{char, digit1, multispace0, multispace1};
 use nom::character::is_alphabetic;
 use nom::combinator::{complete, eof, opt, value};
 use nom::error::Error;
@@ -8,8 +8,8 @@ use nom::IResult;
 use nom::multi::{many0, separated_list0};
 use nom::sequence::{delimited, tuple};
 use nom_locate::LocatedSpan;
-use crate::ast::{BinaryOp, Expr, FuncDec, FunctionCallData, Identifier, Program, Stmt};
-use crate::ast::Stmt::{Assignment, ExprStmt, For, If};
+use crate::ast::{AstNode, BinaryOp, Expr, FuncDec, FunctionCallData, Identifier, Program, Stmt};
+use crate::ast::Stmt::{Assignment, ExprStmt, For, If, Return};
 use crate::location::Location;
 
 type Span<'a> = LocatedSpan<&'a str>;
@@ -28,22 +28,34 @@ fn parse_program(input: Span) -> IResult<Span, Program, Error<Span>> {
     let (input, funcs) = complete(many0(parse_function_declaration))(input)?;
     eof(input)?;
 
+    let location = funcs.iter()
+        .fold(Location::new(0, 0, 1), |acc, func| acc.merge(&func.location()));
+
+
     Ok((input, Program{
         functions: funcs,
+        location,
     }))
 }
 
 fn parse_function_declaration(input: Span) -> IResult<Span, FuncDec> {
-    let (input, (_, _, ident, _, _, _)) = tuple((tag("fn"), multispace0, parse_identifier, multispace0, tag("("), multispace0,))(input)?;
+    let (input, (s, _, ident, _, _, _)) = tuple((tag("fn"), multispace0, parse_identifier, multispace0, tag("("), multispace0,))(input)?;
+    let mut location = Location::from_span(&s);
 
     let (input, args) = separated_list0(tuple((multispace0, tag(","), multispace0)), parse_identifier)(input)?;
 
-    let (input, (_, _, _, block)) = tuple((multispace0, tag(")"), multispace0, parse_block))(input)?;
+    let (input, (_, _, s, block)) = tuple((multispace0, tag(")"), multispace0, parse_block))(input)?;
+
+    location = location.merge(&s.into());
+    if let Some(l) = block.last() {
+        location = location.merge(&l.location())
+    }
 
     Ok((input, FuncDec{
         name: ident,
         params: args,
         body: block,
+        location
     }))
 }
 
@@ -55,38 +67,50 @@ fn parse_stmt(input: Span) -> IResult<Span, Stmt> {
         parse_if,
         parse_for,
         parse_expr_stmt,
+        parse_return,
         )))(input)?;
 
     Ok((input, stmt))
 }
 
-fn parse_expr_stmt(input: Span) -> IResult<Span, Stmt> {
-    let (input, expr) = parse_expr(input)?;
-
-    Ok((input, ExprStmt(expr)))
-}
-
 fn parse_assignment(input: Span) -> IResult<Span, Stmt> {
-    let (input, (start, _, name, _, _, _, expr)) = tuple((tag("let"), multispace0, parse_identifier, multispace0, tag("="), multispace0, parse_expr))(input)?;
+    let (input, decl) = opt(tuple((tag("let"), multispace1)))(input)?;
+    let (input, (name, _, _, _, expr)) = tuple(( parse_identifier, multispace0, tag("="), multispace0, parse_expr))(input)?;
 
-    start.fragment();
+    let start = match decl {
+        Some((kw, _)) => Location::from_span(&kw),
+        None => name.location(),
+    };
 
-    Ok((input, Assignment(name, expr)))
+    let is_declaration = decl.is_some();
+    let location = start.merge(&expr.location());
+
+    Ok((input, Assignment(is_declaration, name, expr, location)))
 }
 
 fn parse_if(input: Span) -> IResult<Span, Stmt> {
     // FIXME: Also parse the else branch if it exists
-    let (input, (_, _, cond, _, block)) = tuple((tag("if"), multispace0, parse_expr, multispace0, parse_block))(input)?;
+    let (input, (start, _, cond, end, block)) = tuple((tag("if"), multispace0, parse_expr, multispace0, parse_block))(input)?;
+
+    let mut location = Location::from_span(&start).merge(&end.into());
+    if let Some(l) = block.last() {
+        location = location.merge(&l.location())
+    }
 
     Ok((
         input,
-        If(cond, block, None)
+        If(
+            cond,
+            block,
+            None,
+            location
+         )
     ))
 }
 
 fn parse_for(input: Span) -> IResult<Span, Stmt> {
     // FIXME: There must be betterway than just inserting a f*ck-load of multispace0
-    let (input, (_, _, pre, _, _, _,  cond, _, _, _,post, _,  block)) = tuple((
+    let (input, (start, _, pre, _, _, _,  cond, _, _, _,post, end,  block)) = tuple((
         tag("for"),
         multispace0,
         parse_stmt,
@@ -102,21 +126,44 @@ fn parse_for(input: Span) -> IResult<Span, Stmt> {
         parse_block,
     ))(input)?;
 
+    let mut location = Location::from_span(&start).merge(&end.into());
+    if let Some(l) = block.last() {
+        location = location.merge(&l.location())
+    }
+
     Ok((
         input,
-        For(Box::new(pre), cond, Box::new(post) , block)
+        For(
+            Box::new(pre),
+            cond,
+            Box::new(post) ,
+            block,
+            location
+        )
     ))
 }
 
+fn parse_return(input: Span) -> IResult<Span, Stmt> {
+    let (input, (first, _, expr)) = tuple((tag("return"), multispace0, parse_expr))(input)?;
+    let location = Location::from_span(&input).merge(&expr.location());
+
+    Ok((input, Return(expr, location)))
+}
+
+fn parse_expr_stmt(input: Span) -> IResult<Span, Stmt> {
+    let (input, expr) = parse_expr(input)?;
+    let location = expr.location();
+    Ok((input, ExprStmt(expr, location)))
+}
 
 fn parse_expr(input: Span) -> IResult<Span, Expr> {
     let (input, _) = multispace0(input)?;
     let (input, mut expr) = (alt((
         parse_grouped_expr,
+        parse_showtext_call,
         parse_func_call,
         parse_identifier_expr,
         parse_int_lit,
-        parse_string_lit,
     )))(input)?;
 
     let (input, _) = multispace0(input)?;
@@ -147,25 +194,38 @@ fn parse_block(input: Span) -> IResult<Span, Vec<Stmt>> {
     Ok((input, stmts))
 }
 
+fn parse_showtext_call(input: Span) -> IResult<Span, Expr> {
+    let (input, ident) = parse_identifier(input)?;
+    let (input, (_,_,message,_,last)) = tuple((tag("("), multispace0, parse_string_lit, multispace0, tag(")")))(input)?;
+
+    let location = ident.location().merge(&last.into());
+
+    Ok((input, Expr::FunctionCall(
+        FunctionCallData{function_name: ident, arguments: vec!(message), location: location.clone()},
+        location.clone()
+    )))
+}
+
 fn parse_func_call(input: Span) -> IResult<Span, Expr> {
     let (input, ident) = parse_identifier(input)?;
     let (input, args) = parse_args(input)?;
 
-    let mut location = ident.location;
+    let mut location = ident.location();
     if let Some(last) = args.last() {
         location = location.merge(&last.location())
     }
 
     Ok((input, Expr::FunctionCall(
-        FunctionCallData{function_name: ident, arguments: args},
-        location
+        FunctionCallData{function_name: ident, arguments: args, location},
+        location.clone()
     )))
 }
 
 fn parse_binary_expr<'a>(first: Expr<'a>) -> impl Fn(Span<'a>) -> IResult<Span<'a>, Expr<'a>> {
     move |input: Span<'a>| {
         let (input, (op, e2)) = tuple((parse_binary_op, parse_expr))(input)?;
-        Ok((input, Expr::BinaryExpr(Box::new(first.clone()), op, Box::new(e2))))
+        let location = first.location().merge(&e2.location());
+        Ok((input, Expr::BinaryExpr(Box::new(first.clone()), op, Box::new(e2), location)))
     }
 }
 
@@ -187,8 +247,9 @@ fn parse_args(input: Span) -> IResult<Span, Vec<Expr>> {
 }
 
 fn parse_grouped_expr(input: Span) -> IResult<Span, Expr> {
-    let (input, expr) = delimited(char('('), parse_expr, char(')'))(input)?;
-    Ok((input, Expr::Grouped(Box::new(expr))))
+    let (input, (start, expr, end)) = tuple((tag("("), parse_expr, tag(")")))(input)?;
+    let location = Location::from_span(&start).merge(&end.into());
+    Ok((input, Expr::Grouped(Box::new(expr), location)))
 }
 
 fn parse_int_lit(input: Span) -> IResult<Span, Expr> {
@@ -204,7 +265,8 @@ fn parse_string_lit(input: Span) -> IResult<Span, Expr> {
 
 fn parse_identifier_expr(input: Span) -> IResult<Span, Expr> {
     let (input, ident) = parse_identifier(input)?;
-    Ok((input, Expr::Identifier(ident)))
+    let location = ident.location();
+    Ok((input, Expr::Identifier(ident, location)))
 }
 
 
@@ -226,7 +288,7 @@ mod tests {
         let (input, result) = parse_program(prog).unwrap();
 
         assert_eq!(input.fragment(), &"");
-        assert_eq!(result, Program { functions: vec![]});
+        assert_eq!(result.functions, vec![]);
     }
 
 
@@ -272,13 +334,14 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_expr_with_string_lit() {
-        let input = Span::new("\"hello\"");
+    fn test_parse_showtextln_fn() {
+        let input = Span::new("showtextln(\"hello\")");
         let result = parse_expr(input);
 
         let (rest_input, expr) = result.unwrap();
         assert_eq!(rest_input.fragment(), &"");
-        assert!(matches!(expr, Expr::StringLiteral("hello", _)), "Expected StringLiteral with value \"hello\"");
+
+        assert_eq!(expr.to_string(), "showtextln(\"hello\")")
     }
 
     #[test]
@@ -288,17 +351,24 @@ mod tests {
 
         let (rest_input, expr) = result.unwrap();
         assert_eq!(rest_input.fragment(), &"");
-        assert!(matches!(expr, Expr::Identifier(Identifier { name: "variableName", .. })), "Expected Identifier with name \"variableName\"");
+        assert!(matches!(expr, Expr::Identifier(Identifier { name: "variableName", .. }, _)), "Expected Identifier with name \"variableName\"");
     }
 
     #[test]
     fn test_parse_expr_with_func_call() {
-        let input = Span::new("func(123, \"hello\")");
+        let input = Span::new("func(123, 111)");
         let result = parse_expr(input);
 
         let (rest_input, expr) = result.unwrap();
         assert_eq!(rest_input.fragment(), &"");
         assert!(matches!(expr, Expr::FunctionCall(FunctionCallData { function_name: Identifier { name: "func", .. }, arguments: _, .. }, _)), "Expected FunctionCall with name \"func\"");
+    }
+
+    #[test]
+    fn test_parse_expr_with_func_call_with_string_arg() {
+        let input = Span::new("func(123, \"hello\")");
+        let result = parse_program(input);
+        assert!(matches!(result, Err(_)))
     }
 
     #[test]
@@ -308,7 +378,7 @@ mod tests {
 
         let (rest_input, expr) = result.unwrap();
         assert_eq!(rest_input.fragment(), &"");
-        assert!(matches!(expr, Expr::BinaryExpr(_, BinaryOp::Add, _)), "Expected BinaryExpr with Add operation");
+        assert!(matches!(expr, Expr::BinaryExpr(_, BinaryOp::Add, _, _)), "Expected BinaryExpr with Add operation");
     }
 
     #[test]
@@ -318,7 +388,7 @@ mod tests {
 
         let (rest_input, expr) = result.unwrap();
         assert_eq!(rest_input.fragment(), &"");
-        assert!(matches!(expr, Expr::Grouped(_)), "Expected Grouped expression");
+        assert!(matches!(expr, Expr::Grouped(_, _)), "Expected Grouped expression");
     }
 
     #[test]
@@ -328,7 +398,7 @@ mod tests {
 
         let (rest_input, expr) = result.unwrap();
         assert_eq!(rest_input.fragment(), &"");
-        assert!(matches!(expr, Expr::Grouped(_)), "Expected nested Grouped expression");
+        assert!(matches!(expr, Expr::Grouped(_, _)), "Expected nested Grouped expression");
     }
 
     #[test]
@@ -348,7 +418,7 @@ mod tests {
 
         let (rest_input, expr) = result.unwrap();
         assert_eq!(rest_input.fragment(), &"");
-        assert!(matches!(expr, Expr::BinaryExpr(_, _, _)), "Expected expression with multiple Binary operations");
+        assert!(matches!(expr, Expr::BinaryExpr(_, _, _, _)), "Expected expression with multiple Binary operations");
     }
 
     #[test]
@@ -358,7 +428,7 @@ mod tests {
 
         let (rest_input, expr) = result.unwrap();
         assert_eq!(rest_input.fragment(), &"");
-        assert!(matches!(expr, Expr::BinaryExpr(_, BinaryOp::Equals, _)), "Expected BinaryExpr with Equals operation");
+        assert!(matches!(expr, Expr::BinaryExpr(_, BinaryOp::Equals, _, _)), "Expected BinaryExpr with Equals operation");
     }
 
     #[test]
@@ -368,7 +438,7 @@ mod tests {
 
         let (rest_input, expr) = result.unwrap();
         assert_eq!(rest_input.fragment(), &"");
-        assert!(matches!(expr, Expr::BinaryExpr(_, BinaryOp::NotEqual, _)), "Expected BinaryExpr with NotEqual operation");
+        assert!(matches!(expr, Expr::BinaryExpr(_, BinaryOp::NotEqual, _, _)), "Expected BinaryExpr with NotEqual operation");
     }
 
 }
