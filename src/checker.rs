@@ -1,11 +1,12 @@
+use std::collections::HashMap;
+use std::collections::HashSet;
+
 use crate::ast::AstNode;
 use crate::ast::FuncDec;
 use crate::ast::Program;
 use crate::error::LilError;
 use crate::visitor;
-use crate::visitor::NodeVisitor;
-use std::collections::HashMap;
-use std::collections::HashSet;
+use crate::visitor::{walk_funcdec, NodeVisitor};
 
 pub fn check_lil(program: &Program) -> Result<(), Vec<LilError>> {
     let checker = Checker::new(program);
@@ -23,24 +24,62 @@ struct Scope<'a> {
     variables: HashSet<&'a str>,
 }
 
+impl<'a> Scope<'a> {
+    fn new() -> Self {
+        Scope {
+            enclosing: None,
+            functions: Default::default(),
+            variables: Default::default(),
+        }
+    }
+
+    fn push(self) -> Self {
+        let mut new_scope = Scope::new();
+        new_scope.enclosing = Some(Box::new(self));
+        new_scope
+    }
+
+    fn has_function(self, name: &'a str) -> bool {
+        if self.functions.contains_key(name) {
+            return true;
+        }
+
+        match self.enclosing {
+            Some(s) => s.has_function(name),
+            None => false,
+        }
+    }
+
+    fn get_function(self, name: &'a str) -> Option<&'a usize> {
+        if self.functions.contains_key(name) {
+            return self.functions.get(name);
+        }
+
+        match self.enclosing {
+            Some(s) => s.get_function(name),
+            None => None,
+        }
+    }
+
+    fn add_function(mut self, name: &'a str, arity: usize) {
+        self.functions.insert(name, arity);
+    }
+}
+
 struct Checker<'a> {
     prog: &'a Program<'a>,
-    scope: Scope<'a>,
+    scope: Box<Scope<'a>>,
     errors: Vec<LilError>,
 }
 
 impl<'a> Checker<'a> {
-    fn new(prog: &'a Program<'a>) -> Checker<'a> {
-        let mut scope = Scope {
-            enclosing: None,
-            functions: Default::default(),
-            variables: Default::default(),
-        };
+    fn new(prog: &'a Program<'a>) -> Self {
+        let mut scope = Scope::new();
         // FIXME: Insert builtin functions into scope
 
         Checker {
             prog,
-            scope,
+            scope: Box::new(scope),
             errors: Vec::new(),
         }
     }
@@ -56,7 +95,7 @@ impl<'a> NodeVisitor<'a> for Checker<'a> {
         // Visit all functions
         visitor::walk_prog(self, node);
 
-        if !self.scope.functions.contains_key("main") {
+        if !self.scope.has_function("main") {
             self.errors.push(LilError {
                 header: "No Main Function".to_string(),
                 location: None,
@@ -66,18 +105,31 @@ impl<'a> NodeVisitor<'a> for Checker<'a> {
     }
 
     fn visit_funcdec(&mut self, node: &'a FuncDec) {
-        if self.scope.functions.contains_key(node.name.name) {
+        if self.scope.has_function(node.name.name) {
             self.errors.push(LilError {
                 header: "Function Name Clash".to_string(),
                 location: Some(node.name.location),
                 message: "A function with that name was already defined".to_string(),
             });
+
+            // Even though this is an error we want to check the body of the function.
+            walk_funcdec(self, node);
             return;
         }
 
-        self.scope
-            .functions
-            .insert(node.name.name, node.params.len());
+        let mut args = HashSet::new();
+        for arg in &node.params {
+            if args.contains(arg.name) {
+                self.errors.push(LilError {
+                    header: "Argument Name Clash".to_string(),
+                    location: Some(arg.location),
+                    message: "Arguments to a function must be unique".to_string(),
+                });
+            }
+            args.insert(arg.name);
+        }
+
+        self.scope.add_function(node.name.name, node.params.len());
 
         if node.name.name == "main" && node.params.len() != 0 {
             self.errors.push(LilError {
@@ -86,13 +138,18 @@ impl<'a> NodeVisitor<'a> for Checker<'a> {
                 message: "The main function should not have any arguments.".to_string(),
             })
         }
+
+        self.scope = Box::new(self.scope.push());
+        walk_funcdec(self, node);
+        self.scope = self.scope.enclosing.unwrap();
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::parser::parse_lil_program;
+
+    use super::*;
 
     #[test]
     fn test_no_main() {
@@ -117,6 +174,24 @@ mod tests {
         let src = "
         fn test() {}
         fn test() {}
+        fn main() {}
+        ";
+        let prog = parse_lil_program(src).unwrap();
+        let res = check_lil(&prog);
+
+        assert!(res.is_err());
+        let Err(errs) = res else {
+            assert!(false, "Shouldnt be the case");
+            return;
+        };
+
+        assert_eq!(errs.len(), 1);
+    }
+
+    #[test]
+    fn test_dup_arg_name() {
+        let src = "
+        fn test(a, b, a) {}
         fn main() {}
         ";
         let prog = parse_lil_program(src).unwrap();
