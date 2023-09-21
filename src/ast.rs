@@ -3,6 +3,25 @@ use crate::location::Location;
 
 pub trait AstNode: ToString {
     fn location(&self) -> Location;
+    fn accept<T>(&self, visitor: &mut dyn NodeVisitor<T>) -> T;
+}
+
+pub trait NodeVisitor<T> {
+    fn visit_prog(&mut self, node: &Program) -> T;
+    fn visit_funcdec(&mut self, node: &FuncDec) -> T;
+
+    fn visit_assign(&mut self, node: &Stmt) -> T;
+    fn visit_if(&mut self, node: &Stmt) -> T;
+    fn visit_for(&mut self, node: &Stmt) -> T;
+    fn visit_expr_stmt(&mut self, node: &Stmt) -> T;
+    fn visit_return(&mut self, node: &Stmt) -> T;
+
+    fn visit_int_literal(&mut self, node: &Expr) -> T;
+    fn visit_str_literal(&mut self, node: &Expr) -> T;
+    fn visit_func_call(&mut self, node: &Expr) -> T;
+    fn visit_binary(&mut self, node: &Expr) -> T;
+    fn visit_identifier(&mut self, node: &Expr) -> T;
+    fn visit_grouped(&mut self, node: &Expr) -> T;
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -14,6 +33,10 @@ pub struct Program<'a> {
 impl<'a> AstNode for Program<'a> {
     fn location(&self) -> Location {
         self.location.clone()
+    }
+
+    fn accept<T>(&self, mut visitor: &mut dyn NodeVisitor<T>) -> T {
+        visitor.visit_prog(self)
     }
 }
 
@@ -28,6 +51,10 @@ pub struct FuncDec<'a> {
 impl<'a> AstNode for FuncDec<'a> {
     fn location(&self) -> Location {
         self.location.clone()
+    }
+
+    fn accept<T>(&self, mut visitor: &mut dyn NodeVisitor<T>) -> T {
+        visitor.visit_funcdec(self)
     }
 }
 
@@ -56,6 +83,15 @@ impl<'a> AstNode for Stmt<'a> {
             | Stmt::Return(_, location) => location.clone(),
         }
     }
+    fn accept<T>(&self, visitor: &mut dyn NodeVisitor<T>) -> T {
+        match self {
+            Stmt::Assignment(..) => visitor.visit_assign(self),
+            Stmt::If(..) => visitor.visit_if(self),
+            Stmt::For(..) => visitor.visit_for(self),
+            Stmt::ExprStmt(..) => visitor.visit_expr_stmt(self),
+            Stmt::Return(..) => visitor.visit_return(self),
+        }
+    }
 }
 
 
@@ -78,6 +114,16 @@ impl<'a> AstNode for Expr<'a> {
             | Expr::BinaryExpr(_, _, _, loc)
             | Expr::Identifier(_, loc)
             | Expr::Grouped(_, loc) => loc.clone(),
+        }
+    }
+    fn accept<T>(&self, mut visitor: &mut dyn NodeVisitor<T>) -> T {
+        match self {
+           Expr::IntegerLiteral(..)  => visitor.visit_int_literal(self),
+            Expr::StringLiteral(..)  => visitor.visit_str_literal(self),
+            Expr::FunctionCall(..)  => visitor.visit_func_call(self),
+            Expr::BinaryExpr(..)  => visitor.visit_binary(self),
+            Expr::Identifier(..)  => visitor.visit_identifier(self),
+            Expr::Grouped(..)  => visitor.visit_grouped(self),
         }
     }
 }
@@ -109,6 +155,9 @@ pub struct Identifier<'a> {
 impl<'a> AstNode for Identifier<'a> {
     fn location(&self) -> Location {
         self.location.clone()
+    }
+    fn accept<T>(&self, mut visitor: &mut dyn NodeVisitor<T>) -> T {
+        todo!();
     }
 }
 

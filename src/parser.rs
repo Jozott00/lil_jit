@@ -1,7 +1,6 @@
 use nom::branch::alt;
 use nom::bytes::complete::{tag, tag_no_case, take_until, take_while1};
 use nom::character::complete::{char, digit1, multispace0, multispace1};
-use nom::character::is_alphabetic;
 use nom::combinator::{complete, eof, opt, value};
 use nom::error::Error;
 use nom::IResult;
@@ -145,7 +144,7 @@ fn parse_for(input: Span) -> IResult<Span, Stmt> {
 
 fn parse_return(input: Span) -> IResult<Span, Stmt> {
     let (input, (first, _, expr)) = tuple((tag("return"), multispace0, parse_expr))(input)?;
-    let location = Location::from_span(&input).merge(&expr.location());
+    let location = Location::from_span(&first).merge(&expr.location());
 
     Ok((input, Return(expr, location)))
 }

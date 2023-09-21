@@ -3,12 +3,20 @@ use std::collections::HashSet;
 use crate::ast::Program;
 use crate::error::LilError;
 
+struct Scope<'a> {
+    enclosing: Option<Box<Scope<'a>>>,
+    functions: HashMap<&'a str, i64>,
+    variables: HashSet<&'a str>,
+}
+
 pub fn check_lil(program: &Program) -> Result<(), Vec<LilError>> {
     let mut scope = Scope{
         enclosing: None,
         functions: Default::default(),
         variables: Default::default(),
     };
+
+    // FIXME: Insert builtin functions into scope
 
     let mut errors: Vec<LilError> = Vec::new();
 
@@ -51,11 +59,7 @@ pub fn check_lil(program: &Program) -> Result<(), Vec<LilError>> {
     Ok(())
 }
 
-struct Scope<'a> {
-    enclosing: Option<Box<Scope<'a>>>,
-    functions: HashMap<&'a str, i64>,
-    variables: HashSet<&'a str>,
-}
+
 
 
 // 1) Variables, functions exist
