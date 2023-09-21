@@ -4,3 +4,4 @@ mod location;
 mod error;
 pub mod checker;
 mod jit;
+mod visitor;

@@ -1,33 +1,14 @@
-use std::fmt;
 use crate::location::Location;
+use std::fmt;
 
-pub trait AstNode: ToString {
+pub trait AstNode: fmt::Display {
     fn location(&self) -> Location;
-    fn accept<T>(&self, visitor: &mut dyn NodeVisitor<T>) -> T;
-}
-
-pub trait NodeVisitor<T> {
-    fn visit_prog(&mut self, node: &Program) -> T;
-    fn visit_funcdec(&mut self, node: &FuncDec) -> T;
-
-    fn visit_assign(&mut self, node: &Stmt) -> T;
-    fn visit_if(&mut self, node: &Stmt) -> T;
-    fn visit_for(&mut self, node: &Stmt) -> T;
-    fn visit_expr_stmt(&mut self, node: &Stmt) -> T;
-    fn visit_return(&mut self, node: &Stmt) -> T;
-
-    fn visit_int_literal(&mut self, node: &Expr) -> T;
-    fn visit_str_literal(&mut self, node: &Expr) -> T;
-    fn visit_func_call(&mut self, node: &Expr) -> T;
-    fn visit_binary(&mut self, node: &Expr) -> T;
-    fn visit_identifier(&mut self, node: &Expr) -> T;
-    fn visit_grouped(&mut self, node: &Expr) -> T;
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Program<'a> {
     pub(crate) functions: Vec<FuncDec<'a>>,
-    pub location: Location
+    pub location: Location,
 }
 
 impl<'a> AstNode for Program<'a> {
@@ -35,9 +16,9 @@ impl<'a> AstNode for Program<'a> {
         self.location.clone()
     }
 
-    fn accept<T>(&self, mut visitor: &mut dyn NodeVisitor<T>) -> T {
+    /*fn accept<T>(&self, mut visitor: &mut dyn NodeVisitor<T>) -> T {
         visitor.visit_prog(self)
-    }
+    }*/
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -53,80 +34,108 @@ impl<'a> AstNode for FuncDec<'a> {
         self.location.clone()
     }
 
-    fn accept<T>(&self, mut visitor: &mut dyn NodeVisitor<T>) -> T {
+    /*fn accept<T>(&self, mut visitor: &mut dyn NodeVisitor<T>) -> T {
         visitor.visit_funcdec(self)
+    }*/
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct Stmt<'a> {
+    pub kind: StmtKind<'a>,
+    pub location: Location,
+}
+
+impl<'a> AstNode for Stmt<'a> {
+    fn location(&self) -> Location {
+        return self.location;
     }
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum Stmt<'a> {
+pub enum StmtKind<'a> {
     // The bool indicates if the assignment is a declaration or not
-    Assignment(bool, Identifier<'a>, Expr<'a>, Location),
+    Assignment(bool, Identifier<'a>, Expr<'a>),
 
-    If(Expr<'a>, Vec<Stmt<'a>>, Option<Vec<Stmt<'a>>>, Location),
+    If(Expr<'a>, Vec<Stmt<'a>>, Option<Vec<Stmt<'a>>>),
 
     // FIXME: the pre and post stmt should be optional
-    For(Box<Stmt<'a>>, Expr<'a>, Box<Stmt<'a>>, Vec<Stmt<'a>>, Location),
-    ExprStmt(Expr<'a>, Location),
+    For(Box<Stmt<'a>>, Expr<'a>, Box<Stmt<'a>>, Vec<Stmt<'a>>),
+    ExprStmt(Expr<'a>),
 
-    Return(Expr<'a>, Location)
+    Return(Expr<'a>),
 }
 
-
-impl<'a> AstNode for Stmt<'a> {
+/*
+impl<'a> AstNode for StmtKind<'a> {
     fn location(&self) -> Location {
         match self {
-            Stmt::Assignment(_, _, _, location)
-            | Stmt::If(_, _, _, location)
-            | Stmt::For(_, _, _, _, location)
-            | Stmt::ExprStmt(_, location)
-            | Stmt::Return(_, location) => location.clone(),
+            StmtKind::Assignment(_, _, _, location)
+            | StmtKind::If(_, _, _, location)
+            | StmtKind::For(_, _, _, _, location)
+            | StmtKind::ExprStmt(_, location)
+            | StmtKind::Return(_, location) => location.clone(),
         }
     }
     fn accept<T>(&self, visitor: &mut dyn NodeVisitor<T>) -> T {
         match self {
-            Stmt::Assignment(..) => visitor.visit_assign(self),
-            Stmt::If(..) => visitor.visit_if(self),
-            Stmt::For(..) => visitor.visit_for(self),
-            Stmt::ExprStmt(..) => visitor.visit_expr_stmt(self),
-            Stmt::Return(..) => visitor.visit_return(self),
+            StmtKind::Assignment(..) => visitor.visit_assign(self),
+            StmtKind::If(..) => visitor.visit_if(self),
+            StmtKind::For(..) => visitor.visit_for(self),
+            StmtKind::ExprStmt(..) => visitor.visit_expr_stmt(self),
+            StmtKind::Return(..) => visitor.visit_return(self),
         }
     }
 }
 
+ */
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum Expr<'a> {
-    IntegerLiteral(i64, Location),
-    StringLiteral(&'a str, Location),
-    FunctionCall(FunctionCallData<'a>, Location),
-    BinaryExpr(Box<Expr<'a>>, BinaryOp, Box<Expr<'a>>, Location),
-    Identifier(Identifier<'a>, Location),
-    Grouped(Box<Expr<'a>>, Location)
+pub struct Expr<'a> {
+    pub(crate) kind: ExprKind<'a>,
+    pub(crate) location: Location,
 }
 
 impl<'a> AstNode for Expr<'a> {
     fn location(&self) -> Location {
+        return self.location;
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum ExprKind<'a> {
+    IntegerLiteral(i64),
+    StringLiteral(&'a str),
+    FunctionCall(FunctionCallData<'a>),
+    BinaryExpr(Box<Expr<'a>>, BinaryOp, Box<Expr<'a>>),
+    Identifier(Identifier<'a>),
+    Grouped(Box<Expr<'a>>),
+}
+
+/*
+impl<'a> AstNode for ExprKind<'a> {
+    fn location(&self) -> Location {
         match self {
-            Expr::IntegerLiteral(_, loc)
-            | Expr::StringLiteral(_, loc)
-            | Expr::FunctionCall(_, loc)
-            | Expr::BinaryExpr(_, _, _, loc)
-            | Expr::Identifier(_, loc)
-            | Expr::Grouped(_, loc) => loc.clone(),
+            ExprKind::IntegerLiteral(_, loc)
+            | ExprKind::StringLiteral(_, loc)
+            | ExprKind::FunctionCall(_, loc)
+            | ExprKind::BinaryExpr(_, _, _, loc)
+            | ExprKind::Identifier(_, loc)
+            | ExprKind::Grouped(_, loc) => loc.clone(),
         }
     }
     fn accept<T>(&self, mut visitor: &mut dyn NodeVisitor<T>) -> T {
         match self {
-           Expr::IntegerLiteral(..)  => visitor.visit_int_literal(self),
-            Expr::StringLiteral(..)  => visitor.visit_str_literal(self),
-            Expr::FunctionCall(..)  => visitor.visit_func_call(self),
-            Expr::BinaryExpr(..)  => visitor.visit_binary(self),
-            Expr::Identifier(..)  => visitor.visit_identifier(self),
-            Expr::Grouped(..)  => visitor.visit_grouped(self),
+           ExprKind::IntegerLiteral(..)  => visitor.visit_int_literal(self),
+            ExprKind::StringLiteral(..)  => visitor.visit_str_literal(self),
+            ExprKind::FunctionCall(..)  => visitor.visit_func_call(self),
+            ExprKind::BinaryExpr(..)  => visitor.visit_binary(self),
+            ExprKind::Identifier(..)  => visitor.visit_identifier(self),
+            ExprKind::Grouped(..)  => visitor.visit_grouped(self),
         }
     }
 }
+
+ */
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum BinaryOp {
@@ -142,26 +151,22 @@ pub enum BinaryOp {
 pub struct FunctionCallData<'a> {
     pub function_name: Identifier<'a>,
     pub arguments: Vec<Expr<'a>>,
-    pub location: Location
+    pub location: Location,
 }
-
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Identifier<'a> {
     pub name: &'a str,
-    pub location: Location
+    pub location: Location,
 }
 
 impl<'a> AstNode for Identifier<'a> {
     fn location(&self) -> Location {
-        self.location.clone()
-    }
-    fn accept<T>(&self, mut visitor: &mut dyn NodeVisitor<T>) -> T {
-        todo!();
+        self.location
     }
 }
 
-
+// Display implementations
 
 impl<'a> fmt::Display for Program<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -179,44 +184,53 @@ impl<'a> fmt::Display for FuncDec<'a> {
 
 impl<'a> fmt::Display for Stmt<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Stmt::Assignment(decl, ident, expr, _) => {
+        match &self.kind {
+            StmtKind::Assignment(decl, ident, expr) => {
                 let decl_str = if *decl { "let " } else { "" };
                 write!(f, "{}{} = {};", decl_str, ident, expr)
-            },
-            Stmt::If(condition, if_block, else_block, _) => {
+            }
+            StmtKind::If(condition, if_block, else_block) => {
                 let if_b = join_custom(&if_block, "\n");
                 let else_b = join_custom(&else_block.as_ref().unwrap_or(&vec![]), "\n");
                 write!(f, "if {} {{ {} }} else {{ {} }}", condition, if_b, else_b)
-            },
-            _ => todo!()
+            }
+            _ => todo!(),
         }
     }
 }
 
 impl<'a> fmt::Display for Expr<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Expr::IntegerLiteral(i, _) => write!(f, "{}", i),
-            Expr::StringLiteral(s, _) => write!(f, "\"{}\"", s),
-            Expr::FunctionCall(d, _) => write!(f, "{}({})", d.function_name, join_custom(&d.arguments, ", ")),
-            Expr::BinaryExpr(first, op, s, _) => write!(f, "{} {} {}", first, op, s),
-            Expr::Identifier(i, _) => write!(f, "{}", i),
-            Expr::Grouped(expr, _) => write!(f, "({})", expr),
+        match &self.kind {
+            ExprKind::IntegerLiteral(i) => write!(f, "{}", i),
+            ExprKind::StringLiteral(s) => write!(f, "\"{}\"", s),
+            ExprKind::FunctionCall(d) => write!(
+                f,
+                "{}({})",
+                d.function_name,
+                join_custom(&d.arguments, ", ")
+            ),
+            ExprKind::BinaryExpr(first, op, s) => write!(f, "{} {} {}", first, op, s),
+            ExprKind::Identifier(i) => write!(f, "{}", i),
+            ExprKind::Grouped(expr) => write!(f, "({})", expr),
         }
     }
 }
 
 impl fmt::Display for BinaryOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", match self {
-            BinaryOp::Add => "+",
-            BinaryOp::Minus => "-",
-            BinaryOp::Multi => "*",
-            BinaryOp::Divide => "/",
-            BinaryOp::Equals => "==",
-            BinaryOp::NotEqual => "!=",
-        })
+        write!(
+            f,
+            "{}",
+            match self {
+                BinaryOp::Add => "+",
+                BinaryOp::Minus => "-",
+                BinaryOp::Multi => "*",
+                BinaryOp::Divide => "/",
+                BinaryOp::Equals => "==",
+                BinaryOp::NotEqual => "!=",
+            }
+        )
     }
 }
 
@@ -229,5 +243,8 @@ impl<'a> fmt::Display for Identifier<'a> {
 // Helper functions
 
 fn join_custom<T: ToString>(vec: &[T], sep: &str) -> String {
-    vec.iter().map(|e| e.to_string()).collect::<Vec<String>>().join(sep)
+    vec.iter()
+        .map(|e| e.to_string())
+        .collect::<Vec<String>>()
+        .join(sep)
 }
