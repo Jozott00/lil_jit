@@ -2,5 +2,5 @@ pub mod parser;
 mod ast;
 mod location;
 mod error;
-mod checker;
+pub mod checker;
 mod jit;

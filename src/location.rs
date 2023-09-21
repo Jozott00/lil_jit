@@ -1,4 +1,5 @@
 use std::cmp::{max, min};
+
 use nom_locate::LocatedSpan;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -10,7 +11,11 @@ pub struct Location {
 
 impl Location {
     pub fn new(start_off: usize, end_off: usize, line: u32) -> Location {
-        Location { start_offset: start_off, end_offset: end_off, line}
+        Location {
+            start_offset: start_off,
+            end_offset: end_off,
+            line,
+        }
     }
 
     pub fn from_span(span: &LocatedSpan<&str>) -> Location {
@@ -26,7 +31,7 @@ impl Location {
         Location {
             start_offset: min(self.start_offset, other.start_offset),
             end_offset: max(self.end_offset, other.end_offset),
-            line: min(self.line, other.line)
+            line: min(self.line, other.line),
         }
     }
 }

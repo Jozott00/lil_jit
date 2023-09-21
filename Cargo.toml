@@ -11,3 +11,4 @@ nom_locate = "4.2.0"
 armoured_rust = { git = "https://github.com/Jozott00/ARMoured_rust", branch = "main"}
 libc = "0.2.148"
 log = "0.4.20"
+clap = { version = "4.4.4", features = ["derive"] }
