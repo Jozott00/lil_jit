@@ -1,15 +1,16 @@
+use crate::ast::FuncDec;
 use crate::jit::codeinfo::CodeInfo;
 use crate::jit::funcinfo::FuncInfo;
 use std::collections::HashMap;
 
 pub struct JitData<'a> {
     pub compiled_funcs: HashMap<&'a str, CodeInfo<'a>>,
-    pub uncompiled_funcs: HashMap<&'a str, FuncInfo<'a>>,
+    pub uncompiled_funcs: HashMap<&'a str, &'a FuncDec<'a>>,
 }
 
 impl<'a> JitData<'a> {
-    pub fn new(funcs: Vec<FuncInfo<'a>>) -> Self {
-        let uncompiled_funcs = funcs.into_iter().map(|e| (e.name, e)).collect();
+    pub fn new(funcs: Vec<&'a FuncDec<'a>>) -> Self {
+        let uncompiled_funcs = funcs.into_iter().map(|e| (e.name.name, e)).collect();
 
         Self {
             uncompiled_funcs,

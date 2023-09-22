@@ -14,6 +14,8 @@ mod codeinfo;
 mod compiler;
 mod funcinfo;
 mod jitdata;
+mod reg_alloc;
+mod scope;
 
 pub struct JIT<'a> {
     jit_data: JitData<'a>,
@@ -21,22 +23,20 @@ pub struct JIT<'a> {
 
 impl<'a> JIT<'a> {
     pub fn new(ast: &'a Program) -> Self {
-        // TODO: get all program functions and store them in jit_data
-        let funcs: Vec<FuncInfo> = ast.functions.iter().map(func_dec_to_info).collect();
+        let funcs = ast.functions.iter().collect();
         let jit_data = JitData::new(funcs);
         JIT { jit_data }
     }
 
     pub fn run(&'a mut self) {
         info!("JIT start...");
+
+        // reg alloc for main
+
         // compile entry function
-        compile_func("main", &mut self.jit_data);
+        // compile_func(<func_info_with_regs>, &mut self.jit_data);
     }
 }
-
-// impl<'a> JIT<'a> {
-//     pub fn compile(&mut self, )
-// }
 
 fn func_dec_to_info<'a>(dec: &'a FuncDec) -> FuncInfo<'a> {
     FuncInfo {

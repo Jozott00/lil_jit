@@ -434,7 +434,7 @@ mod tests {
     fn test_recursion() {
         let src = "
         fn test(n) {
-            if n < 1: return 0
+            if n + 1: return 0
             return test(n-1) + 1
         }
 

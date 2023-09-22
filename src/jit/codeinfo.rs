@@ -6,8 +6,8 @@ use crate::jit::funcinfo::FuncInfo;
 /// - `FuncInfo` holds high-level information about the function that is compiled.
 /// - `CodegenData` holds the function memory, function memory pointer, etc.
 pub struct CodeInfo<'a> {
-    func_info: FuncInfo<'a>,
-    codegen_data: CodegenData,
+    pub func_info: FuncInfo<'a>,
+    pub codegen_data: CodegenData,
 }
 
 impl<'a> CodeInfo<'a> {
