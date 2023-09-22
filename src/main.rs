@@ -26,7 +26,7 @@ fn main() {
         .expect(&*format!("Unable to read file: {}", &cli.filename));
 
     let ast = parse_lil_program(code.as_str()).unwrap_or_else(|error| {
-        eprintln!("Error: {}", error);
+        error.print(&code);
         exit(1);
     });
 
