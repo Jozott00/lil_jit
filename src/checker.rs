@@ -19,6 +19,7 @@ pub fn check_lil(program: &Program) -> Result<(), Vec<LilError>> {
     Ok(())
 }
 
+#[derive(Debug)]
 struct Scope<'a> {
     enclosing: Option<Box<Scope<'a>>>,
     functions: HashMap<&'a str, usize>,
@@ -82,7 +83,7 @@ impl<'a> Scope<'a> {
         }
 
         match &self.enclosing {
-            Some(s) => s.has_function(name),
+            Some(s) => s.has_var(name),
             None => false,
         }
     }
@@ -153,7 +154,6 @@ impl<'a> NodeVisitor<'a> for Checker<'a> {
                 });
             }
             args.insert(arg.name);
-            self.scope.add_var(arg.name);
         }
 
         self.scope.add_function(node.name.name, node.params.len());
@@ -166,7 +166,13 @@ impl<'a> NodeVisitor<'a> for Checker<'a> {
             })
         }
 
+        self.scope = Box::new(self.scope.push());
+        for arg in &node.params {
+            self.scope.add_var(arg.name);
+        }
+
         walk_funcdec(self, node);
+        self.scope = self.scope.pop().unwrap();
     }
 
     fn visit_expr(&mut self, node: &'a Expr) {

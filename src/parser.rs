@@ -83,8 +83,8 @@ fn parse_stmt(input: Span) -> IResult<Span, Stmt> {
         parse_assignment,
         parse_if,
         parse_for,
-        parse_expr_stmt,
         parse_return,
+        parse_expr_stmt,
     )))(input)?;
 
     Ok((input, stmt))

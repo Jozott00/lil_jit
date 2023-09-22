@@ -18,8 +18,8 @@ impl LilError {
             let mut lines = sourcecode.lines();
 
             if startline == endline {
-                eprintln!("{}", lines.nth(startline).unwrap());
-                eprint!("{}", " ".repeat(startcol));
+                eprintln!("{}", lines.nth(startline - 1).unwrap());
+                eprint!("{}", " ".repeat(startcol - 1));
                 eprintln!("{}\n", "^".repeat(endcol - startcol));
             } else {
                 eprintln!("    No muliline preview available\n\n");
