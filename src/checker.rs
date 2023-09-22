@@ -9,7 +9,7 @@ use crate::visitor;
 use crate::visitor::{walk_funcdec, NodeVisitor};
 
 pub fn check_lil(program: &Program) -> Result<(), Vec<LilError>> {
-    let checker = Checker::new(program);
+    let mut checker = Checker::new(program);
     let errors = checker.check();
     if !errors.is_empty() {
         return Err(errors);
@@ -24,44 +24,54 @@ struct Scope<'a> {
     variables: HashSet<&'a str>,
 }
 
-impl<'a> Scope<'a> {
-    fn new() -> Self {
+impl<'a> Default for Scope<'a> {
+    fn default() -> Self {
         Scope {
             enclosing: None,
             functions: Default::default(),
             variables: Default::default(),
         }
     }
+}
 
-    fn push(self) -> Self {
+impl<'a> Scope<'a> {
+    fn new() -> Self {
+        Self::default()
+    }
+
+    fn push(&mut self) -> Self {
         let mut new_scope = Scope::new();
-        new_scope.enclosing = Some(Box::new(self));
+        new_scope.enclosing = Some(Box::new(std::mem::take(self)));
         new_scope
     }
 
-    fn has_function(self, name: &'a str) -> bool {
+    fn pop(&mut self) -> Option<Box<Self>> {
+        std::mem::take(&mut self.enclosing)
+    }
+
+    fn has_function(&self, name: &'a str) -> bool {
         if self.functions.contains_key(name) {
             return true;
         }
 
-        match self.enclosing {
+        match &self.enclosing {
             Some(s) => s.has_function(name),
             None => false,
         }
     }
 
-    fn get_function(self, name: &'a str) -> Option<&'a usize> {
+    fn get_function(&self, name: &str) -> Option<usize> {
         if self.functions.contains_key(name) {
-            return self.functions.get(name);
+            return Some(*self.functions.get(name).unwrap());
         }
 
-        match self.enclosing {
+        match &self.enclosing {
             Some(s) => s.get_function(name),
             None => None,
         }
     }
 
-    fn add_function(mut self, name: &'a str, arity: usize) {
+    fn add_function(&mut self, name: &'a str, arity: usize) {
         self.functions.insert(name, arity);
     }
 }
@@ -141,7 +151,7 @@ impl<'a> NodeVisitor<'a> for Checker<'a> {
 
         self.scope = Box::new(self.scope.push());
         walk_funcdec(self, node);
-        self.scope = self.scope.enclosing.unwrap();
+        self.scope = self.scope.pop().unwrap();
     }
 }
 
