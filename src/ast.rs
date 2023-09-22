@@ -1,5 +1,6 @@
 use crate::location::Location;
 use std::fmt;
+use std::fmt::write;
 
 pub trait AstNode: fmt::Display {
     fn location(&self) -> Location;
@@ -15,17 +16,13 @@ impl<'a> AstNode for Program<'a> {
     fn location(&self) -> Location {
         self.location.clone()
     }
-
-    /*fn accept<T>(&self, mut visitor: &mut dyn NodeVisitor<T>) -> T {
-        visitor.visit_prog(self)
-    }*/
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct FuncDec<'a> {
     pub name: Identifier<'a>,
     pub params: Vec<Identifier<'a>>,
-    pub body: Vec<Stmt<'a>>,
+    pub body: Stmt<'a>,
     pub location: Location,
 }
 
@@ -33,10 +30,6 @@ impl<'a> AstNode for FuncDec<'a> {
     fn location(&self) -> Location {
         self.location.clone()
     }
-
-    /*fn accept<T>(&self, mut visitor: &mut dyn NodeVisitor<T>) -> T {
-        visitor.visit_funcdec(self)
-    }*/
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -56,38 +49,15 @@ pub enum StmtKind<'a> {
     // The bool indicates if the assignment is a declaration or not
     Assignment(bool, Identifier<'a>, Expr<'a>),
 
-    If(Expr<'a>, Vec<Stmt<'a>>, Option<Vec<Stmt<'a>>>),
+    Block(Vec<Stmt<'a>>),
+    If(Expr<'a>, Box<Stmt<'a>>, Option<Box<Stmt<'a>>>),
 
     // FIXME: the pre and post stmt should be optional
-    For(Box<Stmt<'a>>, Expr<'a>, Box<Stmt<'a>>, Vec<Stmt<'a>>),
+    For(Box<Stmt<'a>>, Expr<'a>, Box<Stmt<'a>>, Box<Stmt<'a>>),
     ExprStmt(Expr<'a>),
 
     Return(Expr<'a>),
 }
-
-/*
-impl<'a> AstNode for StmtKind<'a> {
-    fn location(&self) -> Location {
-        match self {
-            StmtKind::Assignment(_, _, _, location)
-            | StmtKind::If(_, _, _, location)
-            | StmtKind::For(_, _, _, _, location)
-            | StmtKind::ExprStmt(_, location)
-            | StmtKind::Return(_, location) => location.clone(),
-        }
-    }
-    fn accept<T>(&self, visitor: &mut dyn NodeVisitor<T>) -> T {
-        match self {
-            StmtKind::Assignment(..) => visitor.visit_assign(self),
-            StmtKind::If(..) => visitor.visit_if(self),
-            StmtKind::For(..) => visitor.visit_for(self),
-            StmtKind::ExprStmt(..) => visitor.visit_expr_stmt(self),
-            StmtKind::Return(..) => visitor.visit_return(self),
-        }
-    }
-}
-
- */
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Expr<'a> {
@@ -111,32 +81,6 @@ pub enum ExprKind<'a> {
     Grouped(Box<Expr<'a>>),
 }
 
-/*
-impl<'a> AstNode for ExprKind<'a> {
-    fn location(&self) -> Location {
-        match self {
-            ExprKind::IntegerLiteral(_, loc)
-            | ExprKind::StringLiteral(_, loc)
-            | ExprKind::FunctionCall(_, loc)
-            | ExprKind::BinaryExpr(_, _, _, loc)
-            | ExprKind::Identifier(_, loc)
-            | ExprKind::Grouped(_, loc) => loc.clone(),
-        }
-    }
-    fn accept<T>(&self, mut visitor: &mut dyn NodeVisitor<T>) -> T {
-        match self {
-           ExprKind::IntegerLiteral(..)  => visitor.visit_int_literal(self),
-            ExprKind::StringLiteral(..)  => visitor.visit_str_literal(self),
-            ExprKind::FunctionCall(..)  => visitor.visit_func_call(self),
-            ExprKind::BinaryExpr(..)  => visitor.visit_binary(self),
-            ExprKind::Identifier(..)  => visitor.visit_identifier(self),
-            ExprKind::Grouped(..)  => visitor.visit_grouped(self),
-        }
-    }
-}
-
- */
-
 #[derive(Debug, PartialEq, Clone)]
 pub enum BinaryOp {
     Add,
@@ -145,6 +89,10 @@ pub enum BinaryOp {
     Divide,
     Equals,
     NotEqual,
+    Greater,
+    GreaterEqual,
+    Less,
+    LessEqual,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -177,8 +125,7 @@ impl<'a> fmt::Display for Program<'a> {
 impl<'a> fmt::Display for FuncDec<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let params = join_custom(&self.params, ", ");
-        let body = join_custom(&self.body, "\n   ");
-        write!(f, "fn {}({}) {{\n  {}\n}}\n", self.name, params, body)
+        write!(f, "fn {}({}) {{\n  {}\n}}\n", self.name, params, self.body)
     }
 }
 
@@ -190,9 +137,21 @@ impl<'a> fmt::Display for Stmt<'a> {
                 write!(f, "{}{} = {};", decl_str, ident, expr)
             }
             StmtKind::If(condition, if_block, else_block) => {
-                let if_b = join_custom(&if_block, "\n");
-                let else_b = join_custom(&else_block.as_ref().unwrap_or(&vec![]), "\n");
-                write!(f, "if {} {{ {} }} else {{ {} }}", condition, if_b, else_b)
+                let else_b = else_block
+                    .as_ref()
+                    .map_or("".to_string(), |e| e.to_string());
+                write!(
+                    f,
+                    "if {} {{ {} }} else {{ {} }}",
+                    condition, if_block, else_b
+                )
+            }
+            StmtKind::Block(stmts) => {
+                let block = join_custom(stmts, "\n");
+                write!(f, "{}", block)
+            }
+            StmtKind::Return(expr) => {
+                write!(f, "return {}", expr)
             }
             _ => todo!(),
         }
@@ -229,6 +188,10 @@ impl fmt::Display for BinaryOp {
                 BinaryOp::Divide => "/",
                 BinaryOp::Equals => "==",
                 BinaryOp::NotEqual => "!=",
+                BinaryOp::Greater => ">",
+                BinaryOp::GreaterEqual => ">=",
+                BinaryOp::Less => "<",
+                BinaryOp::LessEqual => "<=",
             }
         )
     }

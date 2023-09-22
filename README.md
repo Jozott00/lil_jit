@@ -31,7 +31,7 @@ fn main() {
 
 While there are no strings as values in the language there is are two exception which are the builtin functions `showtext` and `showtextln` which allow to pass them text at compile-time.
 
-Like many C-like languages Lil-lang has blocks with curly braces but if only a single expression needs to be exectued they can be replaced by a double-colon. Therefore these two statements are equally:
+Like many C-like languages Lil-lang has blocks with curly braces but if only a single expression is needed they can be replaced by a double-colon. Therefore these two statements are equally:
 
 ```rust
 if age < 18 {

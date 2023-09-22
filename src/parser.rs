@@ -1,14 +1,16 @@
-use crate::ast::StmtKind::{Assignment, ExprStmt, For, If, Return};
+use crate::ast::StmtKind::{Assignment, Block, ExprStmt, For, If, Return};
 use crate::ast::{
     AstNode, BinaryOp, Expr, ExprKind, FuncDec, FunctionCallData, Identifier, Program, Stmt,
+    StmtKind,
 };
+use crate::location;
 use crate::location::Location;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, tag_no_case, take_until, take_while1};
 use nom::character::complete::{char, digit1, multispace0, multispace1};
 use nom::combinator::{complete, eof, opt, value};
 use nom::error::Error;
-use nom::multi::{many0, separated_list0};
+use nom::multi::{many0, many1, separated_list0};
 use nom::sequence::tuple;
 use nom::IResult;
 use nom_locate::LocatedSpan;
@@ -26,7 +28,7 @@ pub fn parse_lil_program(source: &str) -> Result<Program, String> {
 
 fn parse_program(input: Span) -> IResult<Span, Program, Error<Span>> {
     let (input, _) = multispace0(input)?;
-    let (input, funcs) = complete(many0(parse_function_declaration))(input)?;
+    let (input, funcs) = complete(many1(parse_function_declaration))(input)?;
     eof(input)?;
 
     let location = funcs.iter().fold(Location::new(0, 0, 1), |acc, func| {
@@ -61,10 +63,7 @@ fn parse_function_declaration(input: Span) -> IResult<Span, FuncDec> {
     let (input, (_, _, s, block)) =
         tuple((multispace0, tag(")"), multispace0, parse_block))(input)?;
 
-    location = location.merge(&s.into());
-    if let Some(l) = block.last() {
-        location = location.merge(&l.location())
-    }
+    location = location.merge(&block.location());
 
     Ok((
         input,
@@ -122,13 +121,10 @@ fn parse_if(input: Span) -> IResult<Span, Stmt> {
     let (input, (start, _, cond, end, block)) =
         tuple((tag("if"), multispace0, parse_expr, multispace0, parse_block))(input)?;
 
-    let mut location = Location::from_span(&start).merge(&end.into());
-    if let Some(l) = block.last() {
-        location = location.merge(&l.location())
-    }
+    let mut location = Location::from_span(&start).merge(&block.location());
 
     let stmt = Stmt {
-        kind: If(cond, block, None),
+        kind: If(cond, Box::new(block), None),
         location,
     };
 
@@ -153,13 +149,10 @@ fn parse_for(input: Span) -> IResult<Span, Stmt> {
         parse_block,
     ))(input)?;
 
-    let mut location = Location::from_span(&start).merge(&end.into());
-    if let Some(l) = block.last() {
-        location = location.merge(&l.location())
-    }
+    let mut location = Location::from_span(&start).merge(&block.location());
 
     let stmt = Stmt {
-        kind: For(Box::new(pre), cond, Box::new(post), block),
+        kind: For(Box::new(pre), cond, Box::new(post), Box::new(block)),
         location,
     };
 
@@ -212,21 +205,28 @@ fn parse_expr(input: Span) -> IResult<Span, Expr> {
     Ok((input, expr))
 }
 
-fn parse_block(input: Span) -> IResult<Span, Vec<Stmt>> {
+fn parse_block(input: Span) -> IResult<Span, Stmt> {
     // Single statement blocks
     // Example: if false: return 666
     if input.starts_with(":") {
         let (input, (_, _, stmt)) = tuple((tag(":"), multispace0, parse_stmt))(input)?;
-        return Ok((input, vec![stmt]));
+        return Ok((input, stmt));
     }
 
     // Multi statement blocks
     // Example: if false { return 666}
-    let (input, _) = tuple((tag("{"), multispace0))(input)?;
+    let (input, (first, _)) = tuple((tag("{"), multispace0))(input)?;
     let (input, stmts) = many0(parse_stmt)(input)?;
-    let (input, _) = tuple((tag("}"), multispace0))(input)?;
+    let (input, (last, _)) = tuple((tag("}"), multispace0))(input)?;
+    let location = Location::from_span(&first).merge(&Location::from_span(&last));
 
-    Ok((input, stmts))
+    Ok((
+        input,
+        Stmt {
+            kind: StmtKind::Block(stmts),
+            location: location,
+        },
+    ))
 }
 
 fn parse_showtext_call(input: Span) -> IResult<Span, Expr> {
@@ -255,9 +255,9 @@ fn parse_showtext_call(input: Span) -> IResult<Span, Expr> {
 
 fn parse_func_call(input: Span) -> IResult<Span, Expr> {
     let (input, ident) = parse_identifier(input)?;
-    let (input, (start, args, end)) = tuple((tag("("), parse_args, tag(")")))(input)?;
+    let (input, (_, args, end)) = tuple((tag("("), parse_args, tag(")")))(input)?;
 
-    let mut location = ident.location().merge(&Location::from_span(&end));
+    let location = ident.location().merge(&Location::from_span(&end));
 
     let expr = Expr {
         kind: ExprKind::FunctionCall(FunctionCallData {
@@ -293,6 +293,10 @@ fn parse_binary_op(input: Span) -> IResult<Span, BinaryOp> {
         value(BinaryOp::Divide, tag_no_case("/")),
         value(BinaryOp::Equals, tag_no_case("==")),
         value(BinaryOp::NotEqual, tag_no_case("!=")),
+        value(BinaryOp::Greater, tag_no_case(">")),
+        value(BinaryOp::GreaterEqual, tag_no_case(">=")),
+        value(BinaryOp::Less, tag_no_case("<")),
+        value(BinaryOp::LessEqual, tag_no_case("<=")),
     ))(input)?;
 
     Ok((input, binary_op))

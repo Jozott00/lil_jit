@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::fmt::format;
 
-use crate::ast::AstNode;
-use crate::ast::FuncDec;
 use crate::ast::Program;
+use crate::ast::{AstNode, Stmt, StmtKind};
+use crate::ast::{Expr, ExprKind, FuncDec};
 use crate::error::LilError;
 use crate::visitor;
-use crate::visitor::{walk_funcdec, NodeVisitor};
+use crate::visitor::{walk_expr, walk_funcdec, walk_stmt, walk_stmt_list, NodeVisitor};
 
 pub fn check_lil(program: &Program) -> Result<(), Vec<LilError>> {
     let mut checker = Checker::new(program);
@@ -74,6 +75,21 @@ impl<'a> Scope<'a> {
     fn add_function(&mut self, name: &'a str, arity: usize) {
         self.functions.insert(name, arity);
     }
+
+    fn has_var(&self, name: &'a str) -> bool {
+        if self.variables.contains(name) {
+            return true;
+        }
+
+        match &self.enclosing {
+            Some(s) => s.has_function(name),
+            None => false,
+        }
+    }
+
+    fn add_var(&mut self, name: &'a str) {
+        self.variables.insert(name);
+    }
 }
 
 struct Checker<'a> {
@@ -84,7 +100,7 @@ struct Checker<'a> {
 
 impl<'a> Checker<'a> {
     fn new(prog: &'a Program<'a>) -> Self {
-        let mut scope = Scope::new();
+        let scope = Scope::new();
         // FIXME: Insert builtin functions into scope
 
         Checker {
@@ -137,6 +153,7 @@ impl<'a> NodeVisitor<'a> for Checker<'a> {
                 });
             }
             args.insert(arg.name);
+            self.scope.add_var(arg.name);
         }
 
         self.scope.add_function(node.name.name, node.params.len());
@@ -149,9 +166,94 @@ impl<'a> NodeVisitor<'a> for Checker<'a> {
             })
         }
 
-        self.scope = Box::new(self.scope.push());
         walk_funcdec(self, node);
-        self.scope = self.scope.pop().unwrap();
+    }
+
+    fn visit_expr(&mut self, node: &'a Expr) {
+        match &node.kind {
+            ExprKind::IntegerLiteral(_) => {}
+            ExprKind::StringLiteral(_) => {}
+            ExprKind::FunctionCall(func_data) => {
+                let Some(arity) = self.scope.get_function(func_data.function_name.name) else {
+                    self.errors.push(LilError {
+                        header: "Unknown Function".to_string(),
+                        location: Some(func_data.function_name.location()),
+                        message: "No function with that name exists".to_string(),
+                    });
+                    // Even though this is an error we want to check the arguments
+                    walk_expr(self, node);
+                    return;
+                };
+
+                if arity != func_data.arguments.len() {
+                    self.errors.push(LilError {
+                        header: "Wrong Number of Arguments".to_string(),
+                        location: Some(node.location()),
+                        message: format!(
+                            "The function expected {} arguments but {} were provided",
+                            arity,
+                            func_data.arguments.len()
+                        ),
+                    });
+                }
+            }
+            ExprKind::BinaryExpr(_, _, _) => {}
+            ExprKind::Identifier(ident) => {
+                if !self.scope.has_var(ident.name) {
+                    self.errors.push(LilError {
+                        header: "Unknown Variable".to_string(),
+                        location: Some(node.location()),
+                        message: "No variable with that name exists".to_string(),
+                    })
+                }
+            }
+            ExprKind::Grouped(_) => {}
+        }
+
+        walk_expr(self, node);
+    }
+
+    fn visit_stmt(&mut self, node: &'a Stmt) {
+        match &node.kind {
+            StmtKind::Assignment(is_decl, ident, _) => {
+                if *is_decl && self.scope.has_var(ident.name) {
+                    self.errors.push(LilError {
+                        header: "Variable Name Clash".to_string(),
+                        location: Some(ident.location()),
+                        message: "A variable with that name already exists".to_string(),
+                    })
+                } else if !*is_decl && !self.scope.has_var(ident.name) {
+                    self.errors.push(LilError {
+                        header: "Unknown Variable".to_string(),
+                        location: Some(ident.location()),
+                        message: "No variable with that name exists.\nTip: Did you forget to declare it with `let`?".to_string(),
+                    })
+                }
+
+                if *is_decl {
+                    self.scope.add_var(ident.name)
+                }
+            }
+            StmtKind::Block(stmts) => {
+                self.scope = Box::new(self.scope.push());
+                walk_stmt_list(self, stmts);
+                self.scope = self.scope.pop().unwrap();
+                return;
+            }
+            StmtKind::If(_, _, _) => {}
+            StmtKind::For(_, _, _, _) => {
+                // The init part of the loop (eg: `let i = 0`) should be in the scope of the loop and not of the
+                // sourounding scope.
+                self.scope = Box::new(self.scope.push());
+                walk_stmt(self, node);
+                self.scope = self.scope.pop().unwrap();
+                return;
+            }
+            StmtKind::ExprStmt(_) => {}
+            StmtKind::Return(_) => {}
+        }
+
+        walk_stmt(self, node);
     }
 }
 
@@ -160,6 +262,15 @@ mod tests {
     use crate::parser::parse_lil_program;
 
     use super::*;
+
+    #[test]
+    fn test_minimal_working() {
+        let src = "fn main() {}";
+        let prog = parse_lil_program(src).unwrap();
+        let res = check_lil(&prog);
+
+        assert!(res.is_ok());
+    }
 
     #[test]
     fn test_no_main() {
@@ -234,5 +345,100 @@ mod tests {
         };
 
         assert_eq!(errs.len(), 1);
+    }
+
+    #[test]
+    fn test_undefined_function() {
+        let src = "
+        fn hello() {}
+        fn main() {
+            hallo()
+        }
+        ";
+        let prog = parse_lil_program(src).unwrap();
+        let res = check_lil(&prog);
+
+        assert!(res.is_err());
+        let Err(errs) = res else {
+            assert!(false, "Shouldnt be the case");
+            return;
+        };
+
+        assert_eq!(errs.len(), 1);
+    }
+
+    #[test]
+    fn test_single_variable() {
+        let src = "
+        fn main() {
+            let a = 3
+        }
+        ";
+        let prog = parse_lil_program(src).unwrap();
+        let res = check_lil(&prog);
+
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn test_redeclare_variable() {
+        let src = "
+        fn main() {
+            let a = 3
+            let a = 5
+        }
+        ";
+        let prog = parse_lil_program(src).unwrap();
+        let res = check_lil(&prog);
+
+        assert!(res.is_err());
+        let Err(errs) = res else {
+            assert!(false, "Shouldnt be the case");
+            return;
+        };
+
+        assert_eq!(errs.len(), 1);
+    }
+
+    #[test]
+    fn test_redeclare_argument() {
+        let src = "
+        fn test(n) {
+            let n = 666
+            return n
+        }
+
+        fn main() {
+            test(3)
+        }
+        ";
+        let prog = parse_lil_program(src).unwrap();
+        let res = check_lil(&prog);
+
+        assert!(res.is_err());
+        let Err(errs) = res else {
+            assert!(false, "Shouldnt be the case");
+            return;
+        };
+
+        assert_eq!(errs.len(), 1);
+    }
+
+    #[test]
+    fn test_recursion() {
+        let src = "
+        fn test(n) {
+            if n < 1: return 0
+            return test(n-1) + 1
+        }
+
+        fn main() {
+            test(3)
+        }
+        ";
+        let prog = parse_lil_program(src).unwrap();
+        let res = check_lil(&prog);
+
+        assert!(res.is_ok());
     }
 }

@@ -27,19 +27,20 @@ pub fn walk_stmt<'a, V: NodeVisitor<'a>>(visitor: &mut V, node: &'a Stmt) {
         StmtKind::Assignment(_, _, expr) => visitor.visit_expr(expr),
         StmtKind::If(cond, then, other) => {
             visitor.visit_expr(cond);
-            walk_stmt_list(visitor, then);
+            visitor.visit_stmt(then);
             if let Some(other_exprs) = other {
-                walk_stmt_list(visitor, other_exprs)
+                visitor.visit_stmt(other_exprs);
             }
         }
         StmtKind::For(pre, cond, post, body) => {
             visitor.visit_stmt(pre);
             visitor.visit_expr(cond);
             visitor.visit_stmt(post);
-            walk_stmt_list(visitor, body);
+            visitor.visit_stmt(body);
         }
         StmtKind::ExprStmt(expr) => visitor.visit_expr(expr),
         StmtKind::Return(expr) => visitor.visit_expr(expr),
+        StmtKind::Block(exprs) => walk_stmt_list(visitor, exprs),
     }
 }
 
@@ -70,11 +71,11 @@ pub fn walk_expr_list<'a, V: NodeVisitor<'a>>(visitor: &mut V, expressions: &'a 
 }
 
 pub fn walk_funcdec<'a, V: NodeVisitor<'a>>(visitor: &mut V, funcdec: &'a FuncDec) {
-    walk_stmt_list(visitor, &funcdec.body)
+    visitor.visit_stmt(&funcdec.body);
 }
 
 pub fn walk_prog<'a, V: NodeVisitor<'a>>(visitor: &mut V, prog: &'a Program) {
     for funcdec in &prog.functions {
-        walk_funcdec(visitor, funcdec)
+        visitor.visit_funcdec(&funcdec)
     }
 }
