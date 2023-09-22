@@ -33,9 +33,16 @@ pub fn walk_stmt<'a, V: NodeVisitor<'a>>(visitor: &mut V, node: &'a Stmt) {
             }
         }
         StmtKind::For(pre, cond, post, body) => {
-            visitor.visit_stmt(pre);
+            if let Some(pre) = pre {
+                visitor.visit_stmt(pre);
+            }
+
             visitor.visit_expr(cond);
-            visitor.visit_stmt(post);
+
+            if let Some(post) = post {
+                visitor.visit_stmt(post);
+            }
+
             visitor.visit_stmt(body);
         }
         StmtKind::ExprStmt(expr) => visitor.visit_expr(expr),

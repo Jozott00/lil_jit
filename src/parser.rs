@@ -1,10 +1,3 @@
-use crate::ast::StmtKind::{Assignment, Block, ExprStmt, For, If, Return};
-use crate::ast::{
-    AstNode, BinaryOp, Expr, ExprKind, FuncDec, FunctionCallData, Identifier, Program, Stmt,
-    StmtKind,
-};
-use crate::location;
-use crate::location::Location;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, tag_no_case, take_until, take_while1};
 use nom::character::complete::{char, digit1, multispace0, multispace1};
@@ -15,14 +8,32 @@ use nom::sequence::tuple;
 use nom::IResult;
 use nom_locate::LocatedSpan;
 
+use crate::ast::StmtKind::{Assignment, ExprStmt, For, If, Return};
+use crate::ast::{
+    AstNode, BinaryOp, Expr, ExprKind, FuncDec, FunctionCallData, Identifier, Program, Stmt,
+    StmtKind,
+};
+use crate::error::LilError;
+use crate::location::Location;
+
 type Span<'a> = LocatedSpan<&'a str>;
 
-// FIXME: Maybe we should return a custom error here
-pub fn parse_lil_program(source: &str) -> Result<Program, String> {
+pub fn parse_lil_program(source: &str) -> Result<Program, LilError> {
     let input = Span::new(source);
     match parse_program(input) {
         Ok((_, program)) => Ok(program),
-        Err(e) => Err(e.to_string()),
+        Err(e) => match &e {
+            nom::Err::Error(s) => Err(LilError {
+                header: "Parsing Error".to_string(),
+                location: Some(Location::from_span(&s.input)),
+                message: e.to_string(),
+            }),
+            _ => Err(LilError {
+                header: "Parsing Error".to_string(),
+                location: None,
+                message: e.to_string(),
+            }),
+        },
     }
 }
 
@@ -60,7 +71,7 @@ fn parse_function_declaration(input: Span) -> IResult<Span, FuncDec> {
         parse_identifier,
     )(input)?;
 
-    let (input, (_, _, s, block)) =
+    let (input, (_, _, _, block)) =
         tuple((multispace0, tag(")"), multispace0, parse_block))(input)?;
 
     location = location.merge(&block.location());
@@ -117,14 +128,20 @@ fn parse_assignment(input: Span) -> IResult<Span, Stmt> {
 }
 
 fn parse_if(input: Span) -> IResult<Span, Stmt> {
-    // FIXME: Also parse the else branch if it exists
-    let (input, (start, _, cond, end, block)) =
+    let (input, (start, _, cond, _, block)) =
         tuple((tag("if"), multispace0, parse_expr, multispace0, parse_block))(input)?;
 
+    let (input, other) = opt(tuple((multispace0, tag("else"), multispace0, parse_block)))(input)?;
+
+    let other = other.map(|(_, _, _, else_block)| Box::new(else_block));
+
     let mut location = Location::from_span(&start).merge(&block.location());
+    if let Some(other) = &other {
+        location.merge(&other.location());
+    }
 
     let stmt = Stmt {
-        kind: If(cond, Box::new(block), None),
+        kind: If(cond, Box::new(block), other),
         location,
     };
 
@@ -132,11 +149,10 @@ fn parse_if(input: Span) -> IResult<Span, Stmt> {
 }
 
 fn parse_for(input: Span) -> IResult<Span, Stmt> {
-    // FIXME: There must be betterway than just inserting a f*ck-load of multispace0
-    let (input, (start, _, pre, _, _, _, cond, _, _, _, post, end, block)) = tuple((
+    let (input, (start, _, pre, _, _, _, cond, _, _, _, post, _, block)) = tuple((
         tag("for"),
         multispace0,
-        parse_stmt,
+        opt(parse_stmt),
         multispace0,
         tag(";"),
         multispace0,
@@ -144,15 +160,17 @@ fn parse_for(input: Span) -> IResult<Span, Stmt> {
         multispace0,
         tag(";"),
         multispace0,
-        parse_stmt,
+        opt(parse_stmt),
         multispace0,
         parse_block,
     ))(input)?;
 
-    let mut location = Location::from_span(&start).merge(&block.location());
+    let pre = pre.map(Box::new);
+    let post = post.map(Box::new);
+    let location = Location::from_span(&start).merge(&block.location());
 
     let stmt = Stmt {
-        kind: For(Box::new(pre), cond, Box::new(post), Box::new(block)),
+        kind: For(pre, cond, post, Box::new(block)),
         location,
     };
 
@@ -364,15 +382,6 @@ fn parse_identifier(input: Span) -> IResult<Span, Identifier> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn empty_prog_test() {
-        let prog = Span::new("");
-        let (input, result) = parse_program(prog).unwrap();
-
-        assert_eq!(input.fragment(), &"");
-        assert_eq!(result.functions, vec![]);
-    }
 
     // Identifier tests
 

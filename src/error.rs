@@ -1,5 +1,4 @@
 use crate::location::Location;
-use nom::Slice;
 
 #[derive(Debug)]
 pub struct LilError {
@@ -10,7 +9,6 @@ pub struct LilError {
 
 impl LilError {
     pub fn print(self, sourcecode: &str) {
-        // FIXME: implement code previews
         eprintln!("{}\n", self.header.to_uppercase());
 
         if let Some(loc) = self.location {
@@ -18,14 +16,20 @@ impl LilError {
             let mut lines = sourcecode.lines();
 
             if startline == endline {
+                eprint!("{:2}| ", startline);
                 eprintln!("{}", lines.nth(startline - 1).unwrap());
-                eprint!("{}", " ".repeat(startcol - 1));
+                eprint!("{}", " ".repeat(startcol - 1 + 4));
                 eprintln!("{}\n", "^".repeat(endcol - startcol));
             } else {
-                eprintln!("    No muliline preview available\n\n");
+                let mut lines = lines.skip(startline - 1);
+                for n in startline..=endline {
+                    eprint!("{:2}> ", n);
+                    eprintln!("{}", lines.next().unwrap());
+                }
+                eprintln!();
             }
         } else {
-            eprintln!("    No preview available\n\n");
+            eprintln!("    No preview available\n");
         }
 
         eprintln!("{}\n\n", self.message);

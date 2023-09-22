@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
-use std::fmt::format;
 
 use crate::ast::Program;
 use crate::ast::{AstNode, Stmt, StmtKind};
@@ -19,21 +18,11 @@ pub fn check_lil(program: &Program) -> Result<(), Vec<LilError>> {
     Ok(())
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct Scope<'a> {
     enclosing: Option<Box<Scope<'a>>>,
     functions: HashMap<&'a str, usize>,
     variables: HashSet<&'a str>,
-}
-
-impl<'a> Default for Scope<'a> {
-    fn default() -> Self {
-        Scope {
-            enclosing: None,
-            functions: Default::default(),
-            variables: Default::default(),
-        }
-    }
 }
 
 impl<'a> Scope<'a> {
@@ -334,6 +323,23 @@ mod tests {
     }
 
     #[test]
+    fn test_too_many_main_arguments() {
+        let src = "
+        fn main(x, y, z) {}
+        ";
+        let prog = parse_lil_program(src).unwrap();
+        let res = check_lil(&prog);
+
+        assert!(res.is_err());
+        let Err(errs) = res else {
+            assert!(false, "Shouldnt be the case");
+            return;
+        };
+
+        assert_eq!(errs.len(), 1);
+    }
+
+    #[test]
     fn test_invalid_arg_num() {
         let src = "
         fn test(a, b, c) {}
@@ -446,5 +452,146 @@ mod tests {
         let res = check_lil(&prog);
 
         assert!(res.is_ok());
+    }
+
+    #[test]
+    fn test_unknown_variable() {
+        let src = "
+        fn main() {
+            let three = two + 1
+        }
+        ";
+        let prog = parse_lil_program(src).unwrap();
+        let res = check_lil(&prog);
+
+        assert!(res.is_err());
+        let Err(errs) = res else {
+            assert!(false, "Shouldnt be the case");
+            return;
+        };
+
+        assert_eq!(errs.len(), 1);
+    }
+
+    #[test]
+    fn test_assign_unknown_variable() {
+        let src = "
+        fn main() {
+            three = 2 + 1
+        }
+        ";
+        let prog = parse_lil_program(src).unwrap();
+        let res = check_lil(&prog);
+
+        assert!(res.is_err());
+        let Err(errs) = res else {
+            assert!(false, "Shouldnt be the case");
+            return;
+        };
+
+        assert_eq!(errs.len(), 1);
+    }
+
+    #[test]
+    fn test_function_scope_leak() {
+        let src = "
+        fn test() {
+            let x = 3
+        }
+
+        fn main() {
+            let a = x
+        }
+        ";
+        let prog = parse_lil_program(src).unwrap();
+        let res = check_lil(&prog);
+
+        assert!(res.is_err());
+        let Err(errs) = res else {
+            assert!(false, "Shouldnt be the case");
+            return;
+        };
+
+        assert_eq!(errs.len(), 1);
+    }
+
+    #[test]
+    fn test_if_scope_leak() {
+        let src = "
+        fn main() {
+            if 0 {
+                let x = 3
+            }
+            let y = x
+        }
+        ";
+        let prog = parse_lil_program(src).unwrap();
+        let res = check_lil(&prog);
+
+        assert!(res.is_err());
+        let Err(errs) = res else {
+            assert!(false, "Shouldnt be the case");
+            return;
+        };
+
+        assert_eq!(errs.len(), 1);
+    }
+
+    #[test]
+    fn test_for() {
+        let src = "
+        fn main() {
+            for let i = 0; i < 100; i = i+1 {
+                let y = i * 2
+            }
+        }
+        ";
+        let prog = parse_lil_program(src).unwrap();
+        let res = check_lil(&prog);
+
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn test_for_init_scope_leak() {
+        let src = "
+        fn main() {
+            for let i = 0; i < 100; i = i+1 {
+            }
+            let x = i
+        }
+        ";
+        let prog = parse_lil_program(src).unwrap();
+        let res = check_lil(&prog);
+
+        assert!(res.is_err());
+        let Err(errs) = res else {
+            assert!(false, "Shouldnt be the case");
+            return;
+        };
+
+        assert_eq!(errs.len(), 1);
+    }
+
+    #[test]
+    fn test_for_body_scope_leak() {
+        let src = "
+        fn main() {
+            for let i = 0; i < 100; i = i+1 {
+                let y = i * 2
+            }
+            let x = y
+        }
+        ";
+        let prog = parse_lil_program(src).unwrap();
+        let res = check_lil(&prog);
+
+        assert!(res.is_err());
+        let Err(errs) = res else {
+            assert!(false, "Shouldnt be the case");
+            return;
+        };
+
+        assert_eq!(errs.len(), 1);
     }
 }

@@ -1,0 +1,13 @@
+fn fib(n) {
+    if n < 0: return 0
+    if n < 2: return 0
+    return fib(n - 1) + fib(n - 2)
+}
+
+fn print(n) {
+    let x = n
+}
+
+fn main() {
+    for let i = 0; i < 100; i = i+1: print(fib(i))
+}

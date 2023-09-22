@@ -1,6 +1,5 @@
 use crate::location::Location;
 use std::fmt;
-use std::fmt::write;
 
 pub trait AstNode: fmt::Display {
     fn location(&self) -> Location;
@@ -53,7 +52,12 @@ pub enum StmtKind<'a> {
     If(Expr<'a>, Box<Stmt<'a>>, Option<Box<Stmt<'a>>>),
 
     // FIXME: the pre and post stmt should be optional
-    For(Box<Stmt<'a>>, Expr<'a>, Box<Stmt<'a>>, Box<Stmt<'a>>),
+    For(
+        Option<Box<Stmt<'a>>>,
+        Expr<'a>,
+        Option<Box<Stmt<'a>>>,
+        Box<Stmt<'a>>,
+    ),
     ExprStmt(Expr<'a>),
 
     Return(Expr<'a>),
