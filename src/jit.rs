@@ -16,6 +16,7 @@ mod funcinfo;
 mod jitdata;
 mod reg_alloc;
 mod scope;
+mod lir;
 
 pub struct JIT<'a> {
     jit_data: JitData<'a>,
