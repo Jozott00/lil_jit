@@ -5,6 +5,7 @@ use clap::Parser;
 
 use lil_jit;
 use lil_jit::checker::check_lil;
+use lil_jit::jit::JIT;
 use lil_jit::parser::parse_lil_program;
 
 #[derive(Parser, Debug)]
@@ -16,6 +17,9 @@ struct Cli {
     dump_ast: bool,
 
     #[arg(long)]
+    dump_ir: bool,
+
+    #[arg(long, short)]
     verbose: bool,
 }
 
@@ -42,4 +46,7 @@ fn main() {
         }
         exit(1)
     });
+
+    let mut jit = JIT::new(&ast, cli.verbose, cli.dump_ir);
+    jit.run();
 }

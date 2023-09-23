@@ -4,36 +4,55 @@
 // 4. codegendata .. function specific machine code data (such as mcodebase, mcodeptr, etc.)
 
 use crate::ast::{FuncDec, Program};
-use crate::jit::compiler::compile_func;
 use crate::jit::funcinfo::FuncInfo;
 use crate::jit::jitdata::JitData;
-use log::{info, log};
+use crate::jit::lir::compile_to_lir;
 
 mod codegendata;
 mod codeinfo;
 mod compiler;
 mod funcinfo;
 mod jitdata;
+mod lir;
 mod reg_alloc;
 mod scope;
-mod lir;
 
 pub struct JIT<'a> {
     jit_data: JitData<'a>,
+    verbose: bool,
+    dump_ir: bool,
 }
 
 impl<'a> JIT<'a> {
-    pub fn new(ast: &'a Program) -> Self {
+    pub fn new(ast: &'a Program, verbose: bool, dump_ir: bool) -> Self {
         let funcs = ast.functions.iter().collect();
         let jit_data = JitData::new(funcs);
-        JIT { jit_data }
+        JIT {
+            jit_data,
+            verbose,
+            dump_ir,
+        }
     }
 
     pub fn run(&'a mut self) {
-        info!("JIT start...");
+        self.compile("main");
+    }
+
+    pub fn compile(&'a mut self, funcname: &'a str) {
+        if self.verbose {
+            println!("COMPILING {}", funcname)
+        }
+
+        let lir = compile_to_lir(self.jit_data.uncompiled_funcs.get("main").unwrap());
+
+        if (self.dump_ir) {
+            println!("IR DUMP FOR {}", funcname);
+            for i in &lir {
+                println!("{:?}", i);
+            }
+        }
 
         // reg alloc for main
-
         // compile entry function
         // compile_func(<func_info_with_regs>, &mut self.jit_data);
     }
@@ -48,9 +67,10 @@ fn func_dec_to_info<'a>(dec: &'a FuncDec) -> FuncInfo<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::checker::check_lil;
     use crate::parser::parse_lil_program;
+
+    use super::*;
 
     fn create_prog(str: &str) -> Program {
         let prog = parse_lil_program(str).expect("Couldn't parse program");

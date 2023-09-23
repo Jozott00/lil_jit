@@ -1,8 +1,9 @@
-use crate::ast::FuncDec;
-use crate::jit::codeinfo::CodeInfo;
-use crate::jit::funcinfo::FuncInfo;
 use std::collections::HashMap;
 
+use crate::ast::FuncDec;
+use crate::jit::codeinfo::CodeInfo;
+
+#[derive(Debug)]
 pub struct JitData<'a> {
     pub compiled_funcs: HashMap<&'a str, CodeInfo<'a>>,
     pub uncompiled_funcs: HashMap<&'a str, &'a FuncDec<'a>>,

@@ -1,7 +1,7 @@
-pub mod parser;
 mod ast;
-mod location;
-mod error;
 pub mod checker;
-mod jit;
+mod error;
+pub mod jit;
+mod location;
+pub mod parser;
 mod visitor;

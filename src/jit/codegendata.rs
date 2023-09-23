@@ -2,9 +2,10 @@ use std::ffi::c_void;
 use std::mem::size_of;
 use std::ptr;
 use std::ptr::null_mut;
+
 use armoured_rust::instruction_encoding::{AddressableInstructionProcessor, InstructionProcessor, InstructionSet, InstructionSetWithAddress};
-use armoured_rust::instruction_encoding::branch_exception_system::barriers::Barriers;
 use armoured_rust::instruction_encoding::branch_exception_system::{BranchExceptionSystem, BranchExceptionSystemWithAddress};
+use armoured_rust::instruction_encoding::branch_exception_system::barriers::Barriers;
 use armoured_rust::instruction_encoding::branch_exception_system::conditional_branch_imm::{ConditionalBranchImmediate, ConditionalBranchImmediateWithAddress};
 use armoured_rust::instruction_encoding::branch_exception_system::exception_generation::ExceptionGeneration;
 use armoured_rust::instruction_encoding::branch_exception_system::pstate::PStateInstructions;
@@ -13,9 +14,9 @@ use armoured_rust::instruction_encoding::branch_exception_system::system_instruc
 use armoured_rust::instruction_encoding::branch_exception_system::system_register_move::SystemRegisterMove;
 use armoured_rust::instruction_encoding::branch_exception_system::unconditional_branch_immediate::{UnconditionalBranchImmediate, UnconditionalBranchImmediateWithAddress};
 use armoured_rust::instruction_encoding::branch_exception_system::unconditional_branch_register::UnconditionalBranchRegister;
+use armoured_rust::instruction_encoding::data_proc_imm::{DataProcessingImmediate, DataProcessingImmediateWithAddress};
 use armoured_rust::instruction_encoding::data_proc_imm::add_substract_imm::AddSubtractImmediate;
 use armoured_rust::instruction_encoding::data_proc_imm::bitfield::BitfieldInstructions;
-use armoured_rust::instruction_encoding::data_proc_imm::{DataProcessingImmediate, DataProcessingImmediateWithAddress};
 use armoured_rust::instruction_encoding::data_proc_imm::extract::ExtractInstructions;
 use armoured_rust::instruction_encoding::data_proc_imm::logical_imm::LogicalImmediate;
 use armoured_rust::instruction_encoding::data_proc_imm::mov_wide_imm::MovWideImmediate;
@@ -33,6 +34,7 @@ use armoured_rust::instruction_encoding::data_proc_reg::DataProcessingRegister;
 use armoured_rust::instruction_encoding::data_proc_reg::evaluate_into_flags::EvaluateIntoFlags;
 use armoured_rust::instruction_encoding::data_proc_reg::logical_shift_reg::LogicalShiftRegister;
 use armoured_rust::instruction_encoding::data_proc_reg::rotate_right_into_flags::RotateRightIntoFlags;
+use armoured_rust::instruction_encoding::loads_and_stores::{LoadsAndStores, LoadsAndStoresWithAddress};
 use armoured_rust::instruction_encoding::loads_and_stores::advanced_simd_ldr_str_multi_structures::AdvancedSIMDLoadStoreMultipleStructures;
 use armoured_rust::instruction_encoding::loads_and_stores::advanced_simd_ldr_str_single_structures::AdvancedSIMDLoadStoreSingleStructures;
 use armoured_rust::instruction_encoding::loads_and_stores::atomic_memory_operations::AtomicMemoryOperatinos;
@@ -54,7 +56,6 @@ use armoured_rust::instruction_encoding::loads_and_stores::load_store_reg_unscal
 use armoured_rust::instruction_encoding::loads_and_stores::load_store_register_pac::LoadStoreRegisterPac;
 use armoured_rust::instruction_encoding::loads_and_stores::load_store_register_regoffset::LoadStoreRegisterRegisterOffset;
 use armoured_rust::instruction_encoding::loads_and_stores::load_store_register_unsigned_imm::LoadStoreRegisterUnsignedImmediate;
-use armoured_rust::instruction_encoding::loads_and_stores::{LoadsAndStores, LoadsAndStoresWithAddress};
 use armoured_rust::instruction_encoding::loads_and_stores::memory_copy_and_memory_set::MemoryCopyAndMemorySet;
 use armoured_rust::types::{Instruction, InstructionPointer, Offset32};
 use libc::{MAP_ANON, MAP_PRIVATE, PROT_READ, PROT_WRITE};
@@ -67,9 +68,12 @@ const MAX_OFFSET: usize = i32::MAX as usize;
 
 /// The `CodegenData` struct holds the necessary data for code generation, including pointers to the machine code base and current position,
 /// as well as the length of the allocated memory block.
+#[derive(Debug)]
 pub struct CodegenData {
-    mcbase: InstructionPointer, // The base address of the machine code memory block.
-    len: usize,                 // The length of the allocated memory block.
+    mcbase: InstructionPointer,
+    // The base address of the machine code memory block.
+    len: usize,
+    // The length of the allocated memory block.
     mcodeptr: InstructionPointer, // The current position in the machine code memory block.
 }
 
@@ -78,7 +82,9 @@ pub struct CodegenData {
 impl Drop for CodegenData {
     fn drop(&mut self) {
         // Unmap the allocated memory block.
-        unsafe { libc::munmap(self.mcbase as *mut c_void, self.len); }
+        unsafe {
+            libc::munmap(self.mcbase as *mut c_void, self.len);
+        }
     }
 }
 
@@ -110,7 +116,11 @@ impl CodegenData {
         let mcode_off = self.mcodeptr as usize - self.mcbase as usize;
 
         unsafe {
-            _ = libc::memcpy(new_mem as *mut c_void, self.mcbase as *mut c_void, mcode_off);
+            _ = libc::memcpy(
+                new_mem as *mut c_void,
+                self.mcbase as *mut c_void,
+                mcode_off,
+            );
             libc::munmap(self.mcbase as *mut c_void, self.len);
         }
 
@@ -177,17 +187,26 @@ impl InstructionProcessor<()> for CodegenData {
 impl AddressableInstructionProcessor<()> for CodegenData {
     fn intr_ptr_offset_to(&self, addr: usize) -> Offset32 {
         let pc = self.mcodeptr as usize;
-        let offset_abs = pc.checked_sub(addr)
+        let offset_abs = pc
+            .checked_sub(addr)
             .unwrap_or_else(|| addr.checked_sub(pc).unwrap());
 
-        debug_assert!(offset_abs <= MAX_OFFSET, "Offset to address is too large (exceeds maximum of {:x})", MAX_OFFSET);
+        debug_assert!(
+            offset_abs <= MAX_OFFSET,
+            "Offset to address is too large (exceeds maximum of {:x})",
+            MAX_OFFSET
+        );
 
-        if addr >= pc { offset_abs as i32 } else { -(offset_abs as i32) }
+        if addr >= pc {
+            offset_abs as i32
+        } else {
+            -(offset_abs as i32)
+        }
     }
 }
 
-
 impl InstructionSetWithAddress<()> for CodegenData {}
+
 impl InstructionSet<()> for CodegenData {}
 
 impl DataProcessingImmediate<()> for CodegenData {}
@@ -310,11 +329,10 @@ impl LoadsAndStoresWithAddress<()> for CodegenData {}
 
 impl LoadRegisterLiteralWithAddress<()> for CodegenData {}
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_extend_mem() {
         let mut cd = CodegenData::new().unwrap();
@@ -322,17 +340,16 @@ mod tests {
         let ptr_between = cd.mcodeptr;
         cd.emit(234);
 
-        let val: u8 = unsafe { ptr::read(cd.mcbase as *const u8)};
+        let val: u8 = unsafe { ptr::read(cd.mcbase as *const u8) };
         assert_eq!(val, 123);
-        let val: u8 = unsafe { ptr::read(ptr_between as *const u8)};
+        let val: u8 = unsafe { ptr::read(ptr_between as *const u8) };
         assert_eq!(val, 234);
 
         cd.extend_memory();
 
-        let val: u8 = unsafe { ptr::read(cd.mcbase as *const u8)};
+        let val: u8 = unsafe { ptr::read(cd.mcbase as *const u8) };
         assert_eq!(val, 123);
-        let val: u8 = unsafe { ptr::read((cd.mcodeptr.sub(1)) as *const u8)};
+        let val: u8 = unsafe { ptr::read((cd.mcodeptr.sub(1)) as *const u8) };
         assert_eq!(val, 234);
-
     }
 }
