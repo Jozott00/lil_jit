@@ -3,12 +3,13 @@
 // 2. funcinfo .. higher level information of a function
 // 4. codegendata .. function specific machine code data (such as mcodebase, mcodeptr, etc.)
 
-use crate::ast::{FuncDec, Program};
+use crate::ast::Program;
+use crate::jit::compiler::compile_func;
 use crate::jit::funcinfo::FuncInfo;
 use crate::jit::jitdata::JitData;
 use crate::jit::lir::compile_to_lir;
 use crate::jit::reg_alloc::alloc_reg;
-use crate::jit::reg_alloc::reg_def::Arm64;
+use arch_def::Arm64;
 
 mod codegendata;
 mod codeinfo;
@@ -18,22 +19,17 @@ mod jitdata;
 mod lir;
 mod reg_alloc;
 mod scope;
+pub mod arch_def;
 
 pub struct JIT<'a> {
     jit_data: JitData<'a>,
-    verbose: bool,
-    dump_ir: bool,
 }
 
 impl<'a> JIT<'a> {
-    pub fn new(ast: &'a Program, verbose: bool, dump_ir: bool) -> Self {
+    pub fn new(ast: &'a Program) -> Self {
         let funcs = ast.functions.iter().collect();
         let jit_data = JitData::new(funcs);
-        JIT {
-            jit_data,
-            verbose,
-            dump_ir,
-        }
+        JIT { jit_data }
     }
 
     pub fn run(&'a mut self) {
@@ -49,16 +45,8 @@ impl<'a> JIT<'a> {
         let reg_mapping = alloc_reg::<Arm64>(&lir);
         log::info!(target: "dump-rec-alloc", "------\nREGISTER ALLOCATION DUMP FOR {}:\n{:?}\n------\n", funcname, reg_mapping);
 
-        // reg alloc for main
-        // compile entry function
-        // compile_func(<func_info_with_regs>, &mut self.jit_data);
-    }
-}
-
-fn func_dec_to_info<'a>(dec: &'a FuncDec) -> FuncInfo<'a> {
-    FuncInfo {
-        name: dec.name.name,
-        ast: dec,
+        let func_info = FuncInfo::new(funcname, lir, reg_mapping);
+        compile_func(func_info, &mut self.jit_data);
     }
 }
 
@@ -79,7 +67,7 @@ mod tests {
     #[test]
     fn test_minimal_prog() {
         let prog = create_prog("fn main() {}");
-        let mut jit = JIT::new(&prog, false, false);
+        let mut jit = JIT::new(&prog);
         jit.run();
     }
 }

@@ -1,9 +1,4 @@
-pub type Register = armoured_rust::types::Register;
-
-pub trait RegDefinition {
-    fn callee_saved() -> &'static [Register];
-    fn caller_saved() -> &'static [Register];
-}
+use crate::jit::arch_def::{RegDefinition, Register};
 
 pub struct Arm64;
 
@@ -16,5 +11,17 @@ impl RegDefinition for Arm64 {
     fn caller_saved() -> &'static [Register] {
         const CALLER_REGS: [Register; 12] = [3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15];
         return &CALLER_REGS;
+    }
+
+    fn temp1() -> Register {
+        0
+    }
+
+    fn temp2() -> Register {
+        1
+    }
+
+    fn temp3() -> Register {
+        2
     }
 }

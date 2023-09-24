@@ -1,12 +1,11 @@
 mod live_interval;
-pub(crate) mod reg_def;
-mod reg_off;
+pub mod reg_off;
 mod reg_repo;
 
 use crate::jit::lir::LirFunction;
 use crate::jit::lir::LirReg;
 use crate::jit::reg_alloc::live_interval::{compute_live_intervals, LiveInterval, LiveIntervals};
-use crate::jit::reg_alloc::reg_def::{RegDefinition, Register};
+use crate::jit::arch_def::{RegDefinition, Register};
 use crate::jit::reg_alloc::reg_off::RegOff;
 use std::collections::HashMap;
 use std::marker::PhantomData;
