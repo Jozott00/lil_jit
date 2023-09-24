@@ -1,0 +1,8 @@
+        fn test(n) {
+            if n + 1: return 0
+            return test(n-1) + 1
+        }
+
+        fn main() {
+            test(3)
+        }
