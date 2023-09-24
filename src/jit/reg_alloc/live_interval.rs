@@ -14,11 +14,11 @@ pub type LiveIntervals = Vec<LiveInterval>;
 /// * `var` - Variable of type LirReg for which the live interval is computed.
 /// * `start` - The start position of the live interval.
 /// * `end` - The end position of the live interval.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Eq, Hash)]
 pub struct LiveInterval {
-    var: LirReg,
-    start: usize,
-    end: usize,
+    pub var: LirReg,
+    pub start: usize,
+    pub end: usize,
     // TODO: Maybe check if contains function call?
 }
 
@@ -31,10 +31,10 @@ pub struct LiveInterval {
 /// # Outcome
 /// The function returns a unsorted list of LiveIntervals that holds all variable/register
 /// intervals of a function.
-pub fn compute_live_intervals(instrs: &LirFunction) -> LiveIntervals {
+pub fn compute_live_intervals(func: &LirFunction) -> LiveIntervals {
     let mut intervals = HashMap::new();
 
-    for (i, instr) in instrs.iter().enumerate() {
+    for (i, instr) in func.instrs().iter().enumerate() {
         match instr {
             LIR::BinaryExpr(dest, _, lhs, rhs) => {
                 update_var(dest, i, &mut intervals);
@@ -93,32 +93,3 @@ fn update_var(var: &LirReg, pos: usize, intervals: &mut HashMap<LirReg, LiveInte
     // update last occurrence
     entry.end = pos;
 }
-
-/*
-// alle verwendeten callee saved register saven
-// spill rax
-
-let b = 3 // b use rax
-let c = 4
-c = 3 + b
-// ---
-let a = hello(0, 1, 2)
-
-let x = c
-
-// restore rax
-
-LoadConst(Tmp(0), 2)
-LoadConst(Tmp(1), 3)
-BinaryExpr(Tmp(2), Add, Tmp(0), Tmp(1))
-Assign(Var("a"), Tmp(2))
-LoadConst(Tmp(3), 2)
-LoadConst(Tmp(4), 2)
-
-BinaryExpr(Tmp(5), Add, Var("a"), Tmp(4))
-BinaryExpr(Tmp(6), Multi, Tmp(3), Tmp(5))
-Assign(Var("b"), Tmp(6))
-Assign(Var("a"), Var("b"))
-
-
- */

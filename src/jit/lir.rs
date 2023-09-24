@@ -2,14 +2,23 @@ use crate::ast;
 use crate::ast::{Expr, ExprKind, FuncDec, Program, Stmt, StmtKind};
 use crate::jit::lir::LirReg::{Tmp, Var};
 use crate::jit::lir::LIR::{Assign, BinaryExpr, Call, Jump, JumpIfFalse, LoadConst, Return};
-use crate::visitor::{walk_prog, NodeVisitor};
+use crate::visitor::NodeVisitor;
+use std::fmt;
+use std::fmt::Formatter;
 
 pub fn compile_to_lir<'a>(func: &'a FuncDec<'a>) -> LirFunction {
     let compiler = LirCompiler::new(func);
     compiler.compile()
 }
 
-pub type LirFunction = Vec<LIR>;
+#[derive(Debug)]
+pub struct LirFunction(Vec<LIR>);
+
+impl LirFunction {
+    pub fn instrs(&self) -> &Vec<LIR> {
+        &self.0
+    }
+}
 
 #[derive(Debug, Eq, PartialEq, Hash)]
 pub enum LIR {
@@ -56,9 +65,9 @@ impl<'a> LirCompiler<'a> {
         }
     }
 
-    fn compile(mut self) -> Vec<LIR> {
+    fn compile(mut self) -> LirFunction {
         self.flat_funcdec(&self.ast);
-        self.instrs
+        LirFunction(self.instrs)
     }
 }
 
@@ -197,6 +206,54 @@ impl<'a> LirCompiler<'a> {
     }
 }
 
+impl fmt::Display for LirReg {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            LirReg::Var(var) => write!(f, "Var({})", var),
+            LirReg::Tmp(tmp) => write!(f, "Tmp({})", tmp),
+        }
+    }
+}
+
+impl fmt::Display for Label {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Label({})", self.0)
+    }
+}
+
+impl fmt::Display for LIR {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            LIR::BinaryExpr(reg_a, op, reg_b, reg_c) => {
+                write!(f, "BinaryExpr({}, {}, {}, {})", reg_a, op, reg_b, reg_c)
+            }
+            LIR::Assign(reg_a, reg_b) => write!(f, "Assign({}, {})", reg_a, reg_b),
+            LIR::LoadConst(reg, const_val) => write!(f, "LoadConst({}, {})", reg, const_val),
+            LIR::Label(label) => write!(f, "Label({})", label),
+            LIR::Jump(label) => write!(f, "Jump({})", label),
+            LIR::JumpIfFalse(reg, label) => write!(f, "JumpIfFalse({}, {})", reg, label),
+            LIR::Call(reg, func_name, args) => {
+                write!(f, "Call({}, {}, ", reg, func_name)?;
+                let args_strings: Vec<String> = args.iter().map(ToString::to_string).collect();
+                write!(f, "[{}])", args_strings.join(", "))
+            }
+            LIR::Return(reg) => write!(f, "Return({})", reg),
+        }
+    }
+}
+
+impl fmt::Display for LirFunction {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let joined_str = self
+            .0
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<String>>()
+            .join("\n");
+        write!(f, "{}", joined_str)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -217,7 +274,7 @@ mod tests {
         let first_func = prog.functions.first().unwrap();
         let lir = compile_to_lir(first_func);
 
-        assert_eq!(lir.len(), 0)
+        assert_eq!(lir.instrs().len(), 0)
     }
 
     #[test]
@@ -244,7 +301,7 @@ mod tests {
             LIR::Assign(LirReg::Var("a".to_string()), LirReg::Tmp(2)),
         ];
 
-        assert_eq!(lir, expected_lir);
+        assert_eq!(lir.0, expected_lir);
     }
 
     #[test]
@@ -275,12 +332,13 @@ mod tests {
         ];
 
         let str = lir
+            .instrs()
             .iter()
             .map(|lir| format!("{:?}", lir))
             .collect::<Vec<String>>()
             .join("\n");
         print!("{str}");
 
-        assert_eq!(lir, expected_lir);
+        assert_eq!(*lir.instrs(), expected_lir);
     }
 }
