@@ -6,6 +6,7 @@ use crate::jit::funcinfo::FuncInfo;
 use crate::jit::jitdata::JitData;
 use crate::jit::lir::{LirReg, LIR};
 use crate::jit::reg_alloc::reg_off::RegOff;
+use armoured_rust::instruction_encoding::common_aliases::CommonAliases;
 use log::warn;
 use std::marker::PhantomData;
 
@@ -34,10 +35,9 @@ impl<'a, D: RegDefinition> Compiler<'a, D> {
         }
     }
     fn compile(mut self) {
-        let func_info = self.code_info.func_info;
-        let cd = self.cd();
-
-        for instr in func_info.lir().instrs() {
+        // TODO: some way without coping the whole function ir?
+        let instrs = &self.code_info.func_info.lir().instrs().to_vec();
+        for instr in instrs {
             match instr {
                 LIR::BinaryExpr(dest, op, lhs, rhs) => {
                     let lhs = self.load_reg(lhs, D::temp1());
@@ -92,7 +92,6 @@ impl<'a, D: RegDefinition> Compiler<'a, D> {
     }
 
     fn store_dst(&mut self, dst: &LirReg, reg: Register) {
-        let cd = self.cd();
         match self.find_reg_off(dst) {
             RegOff::Reg(dst) => {
                 if dst == reg {
@@ -101,7 +100,7 @@ impl<'a, D: RegDefinition> Compiler<'a, D> {
 
                 // move value from reg to dst
                 warn!(target: "compiler", "moving register when storing. Should not happen...");
-                cd.mov_64_reg(dst, reg);
+                self.cd().mov_64_reg(dst, reg);
             }
             RegOff::Off(offset) => {
                 todo!("Store reg at offset")

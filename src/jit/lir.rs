@@ -20,7 +20,7 @@ impl LirFunction {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Hash)]
+#[derive(Debug, Eq, PartialEq, Hash, Clone)]
 pub enum LIR {
     // TODO: Split up into op specific instructions?
     BinaryExpr(LirReg, ast::BinaryOp, LirReg, LirReg),
@@ -73,7 +73,19 @@ impl<'a> LirCompiler<'a> {
 
 impl<'a> LirCompiler<'a> {
     fn flat_funcdec(&mut self, func_dec: &'a FuncDec<'a>) {
-        self.flat_stmt(&func_dec.body)
+        self.flat_stmt(&func_dec.body);
+
+        // if last is stmt kind, return
+        if let Some(last) = self.instrs.last() {
+            if matches!(last, Return(_)) {
+                return;
+            }
+        }
+
+        // else add return 0
+        let tmp = self.new_tmp();
+        self.instrs.push(LoadConst(tmp.clone(), 0));
+        self.instrs.push(Return(tmp));
     }
     fn flat_stmt(&mut self, node: &'a Stmt) {
         match &node.kind {
@@ -274,7 +286,12 @@ mod tests {
         let first_func = prog.functions.first().unwrap();
         let lir = compile_to_lir(first_func);
 
-        assert_eq!(lir.instrs().len(), 0)
+        assert_eq!(lir.instrs().len(), 2);
+        let expected_lir = vec![
+            LIR::LoadConst(LirReg::Tmp(0), 0),
+            LIR::Return(LirReg::Tmp(0)),
+        ];
+        assert_eq!(lir.0, expected_lir);
     }
 
     #[test]
@@ -299,6 +316,8 @@ mod tests {
                 LirReg::Tmp(1),
             ),
             LIR::Assign(LirReg::Var("a".to_string()), LirReg::Tmp(2)),
+            LIR::LoadConst(LirReg::Tmp(3), 0),
+            LIR::Return(LirReg::Tmp(3)),
         ];
 
         assert_eq!(lir.0, expected_lir);
@@ -311,7 +330,8 @@ mod tests {
         fn main() {
             let a = 2 + 3
             let b = 2 * (a + 2)
-            a = b            
+            a = b   
+            return b         
         }
         ",
         );
@@ -329,6 +349,7 @@ mod tests {
             BinaryExpr(Tmp(6), BinaryOp::Multi, Tmp(3), Tmp(5)),
             Assign(Var("b".to_string()), Tmp(6)),
             Assign(Var("a".to_string()), Var("b".to_string())),
+            Return(Var("b".to_string())),
         ];
 
         let str = lir

@@ -2,10 +2,10 @@ mod live_interval;
 pub mod reg_off;
 mod reg_repo;
 
+use crate::jit::arch_def::{RegDefinition, Register};
 use crate::jit::lir::LirFunction;
 use crate::jit::lir::LirReg;
 use crate::jit::reg_alloc::live_interval::{compute_live_intervals, LiveInterval, LiveIntervals};
-use crate::jit::arch_def::{RegDefinition, Register};
 use crate::jit::reg_alloc::reg_off::RegOff;
 use std::collections::HashMap;
 use std::marker::PhantomData;
@@ -212,6 +212,18 @@ mod tests {
         fn caller_saved() -> &'static [Register] {
             const CALLER_REGS: [Register; 12] = [3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15];
             return &CALLER_REGS;
+        }
+
+        fn temp1() -> Register {
+            0
+        }
+
+        fn temp2() -> Register {
+            1
+        }
+
+        fn temp3() -> Register {
+            2
         }
     }
 }

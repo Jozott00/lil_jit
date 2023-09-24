@@ -1,4 +1,4 @@
-mod arm64;
+pub mod arm64;
 
 pub type Register = armoured_rust::types::Register;
 

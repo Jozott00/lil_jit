@@ -4,13 +4,15 @@
 // 4. codegendata .. function specific machine code data (such as mcodebase, mcodeptr, etc.)
 
 use crate::ast::Program;
+
+use crate::jit::arch_def::arm64::Arm64;
 use crate::jit::compiler::compile_func;
 use crate::jit::funcinfo::FuncInfo;
 use crate::jit::jitdata::JitData;
 use crate::jit::lir::compile_to_lir;
 use crate::jit::reg_alloc::alloc_reg;
-use arch_def::Arm64;
 
+pub mod arch_def;
 mod codegendata;
 mod codeinfo;
 mod compiler;
@@ -19,7 +21,6 @@ mod jitdata;
 mod lir;
 mod reg_alloc;
 mod scope;
-pub mod arch_def;
 
 pub struct JIT<'a> {
     jit_data: JitData<'a>,
@@ -46,7 +47,7 @@ impl<'a> JIT<'a> {
         log::info!(target: "dump-rec-alloc", "------\nREGISTER ALLOCATION DUMP FOR {}:\n{:?}\n------\n", funcname, reg_mapping);
 
         let func_info = FuncInfo::new(funcname, lir, reg_mapping);
-        compile_func(func_info, &mut self.jit_data);
+        compile_func::<Arm64>(func_info, &mut self.jit_data);
     }
 }
 

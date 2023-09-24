@@ -14,6 +14,7 @@ use armoured_rust::instruction_encoding::branch_exception_system::system_instruc
 use armoured_rust::instruction_encoding::branch_exception_system::system_register_move::SystemRegisterMove;
 use armoured_rust::instruction_encoding::branch_exception_system::unconditional_branch_immediate::{UnconditionalBranchImmediate, UnconditionalBranchImmediateWithAddress};
 use armoured_rust::instruction_encoding::branch_exception_system::unconditional_branch_register::UnconditionalBranchRegister;
+use armoured_rust::instruction_encoding::common_aliases::CommonAliases;
 use armoured_rust::instruction_encoding::data_proc_imm::{DataProcessingImmediate, DataProcessingImmediateWithAddress};
 use armoured_rust::instruction_encoding::data_proc_imm::add_substract_imm::AddSubtractImmediate;
 use armoured_rust::instruction_encoding::data_proc_imm::bitfield::BitfieldInstructions;
@@ -206,6 +207,8 @@ impl AddressableInstructionProcessor<()> for CodegenData {
 }
 
 impl InstructionSetWithAddress<()> for CodegenData {}
+
+impl CommonAliases<()> for CodegenData {}
 
 impl InstructionSet<()> for CodegenData {}
 
