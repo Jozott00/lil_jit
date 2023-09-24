@@ -1,31 +1,33 @@
+mod live_interval;
 mod reg_off;
 mod reg_repo;
 
 use crate::ast::FuncDec;
 use crate::jit::funcinfo::FuncInfo;
+use crate::jit::lir::LirFunction;
+use crate::jit::reg_alloc::live_interval::LiveIntervals;
 use crate::visitor::NodeVisitor;
 
 pub fn alloc_reg<'a>(func_dec: &'a FuncDec<'a>) -> FuncInfo<'a> {
-    let reg_alloc = RegAllocator::new(func_dec);
-    reg_alloc.alloc_regs()
+    todo!()
+    // let reg_alloc = RegAllocator::new(func_dec);
+    // reg_alloc.alloc_regs()
 }
 
-struct RegAllocator<'a> {
-    // var_regs: HashMap<&str, >
-    func_dec: &'a FuncDec<'a>,
+struct RegAllocator {
+    live_intervals: LiveIntervals,
 }
 
-impl<'a> RegAllocator<'a> {
-    fn new(func_dec: &'a FuncDec<'a>) -> Self {
-        RegAllocator { func_dec }
-    }
+impl RegAllocator {
+    // fn new(func: &LirFunction) -> Self {
+    //     // let live_intervals =
+    //     // RegAllocator { func_dec }
+    // }
 
-    fn alloc_regs(mut self) -> FuncInfo<'a> {
+    fn alloc_regs(mut self) {
         todo!()
     }
 }
-
-impl<'a> NodeVisitor<'a> for RegAllocator<'a> {}
 
 /* / 3 regs, 1 tmp default
 let a = (3 + (2 - 1))

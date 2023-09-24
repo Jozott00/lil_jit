@@ -45,7 +45,7 @@ impl<'a> JIT<'a> {
 
         let lir = compile_to_lir(self.jit_data.uncompiled_funcs.get("main").unwrap());
 
-        if (self.dump_ir) {
+        if self.dump_ir {
             println!("IR DUMP FOR {}", funcname);
             for i in &lir {
                 println!("{:?}", i);
@@ -82,7 +82,7 @@ mod tests {
     #[test]
     fn test_minimal_prog() {
         let prog = create_prog("fn main() {}");
-        let mut jit = JIT::new(&prog);
+        let mut jit = JIT::new(&prog, false, false);
         jit.run();
     }
 }

@@ -4,12 +4,14 @@ use crate::jit::lir::LirReg::{Tmp, Var};
 use crate::jit::lir::LIR::{Assign, BinaryExpr, Call, Jump, JumpIfFalse, LoadConst, Return};
 use crate::visitor::{walk_prog, NodeVisitor};
 
-pub fn compile_to_lir<'a>(func: &'a FuncDec<'a>) -> Vec<LIR> {
+pub fn compile_to_lir<'a>(func: &'a FuncDec<'a>) -> LirFunction {
     let compiler = LirCompiler::new(func);
     compiler.compile()
 }
 
-#[derive(Debug, PartialEq)]
+pub type LirFunction = Vec<LIR>;
+
+#[derive(Debug, Eq, PartialEq, Hash)]
 pub enum LIR {
     // TODO: Split up into op specific instructions?
     BinaryExpr(LirReg, ast::BinaryOp, LirReg, LirReg),
@@ -28,13 +30,13 @@ pub enum LIR {
     Return(LirReg),
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub enum LirReg {
     Var(String),
     Tmp(u32),
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy, Hash)]
 pub struct Label(u32);
 
 struct LirCompiler<'a> {

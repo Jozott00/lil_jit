@@ -85,7 +85,7 @@ pub enum ExprKind<'a> {
     Grouped(Box<Expr<'a>>),
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub enum BinaryOp {
     Add,
     Minus,
