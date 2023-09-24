@@ -27,7 +27,7 @@ pub enum LIR {
 
     // mem movement
     Assign(LirReg, LirReg),
-    LoadConst(LirReg, i64),
+    LoadConst(LirReg, i32),
 
     // control flow
     Label(Label),

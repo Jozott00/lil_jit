@@ -1,7 +1,8 @@
 use std::ffi::c_void;
+use std::fmt::{Display, Formatter};
 use std::mem::size_of;
-use std::ptr;
 use std::ptr::null_mut;
+use std::{mem, ptr, slice};
 
 use armoured_rust::instruction_encoding::{AddressableInstructionProcessor, InstructionProcessor, InstructionSet, InstructionSetWithAddress};
 use armoured_rust::instruction_encoding::branch_exception_system::{BranchExceptionSystem, BranchExceptionSystemWithAddress};
@@ -59,6 +60,7 @@ use armoured_rust::instruction_encoding::loads_and_stores::load_store_register_r
 use armoured_rust::instruction_encoding::loads_and_stores::load_store_register_unsigned_imm::LoadStoreRegisterUnsignedImmediate;
 use armoured_rust::instruction_encoding::loads_and_stores::memory_copy_and_memory_set::MemoryCopyAndMemorySet;
 use armoured_rust::types::{Instruction, InstructionPointer, Offset32};
+use bad64::{DecodeError, disasm};
 use libc::{MAP_ANON, MAP_PRIVATE, PROT_READ, PROT_WRITE};
 use log::warn;
 
@@ -148,9 +150,64 @@ impl CodegenData {
         }
     }
 
+    pub fn make_executable(&mut self) {
+        unsafe {
+            if libc::mprotect(
+                self.mcbase as *mut c_void,
+                self.len,
+                libc::PROT_READ | libc::PROT_EXEC,
+            ) != 0
+            {
+                panic!("Failed to set memory as executable");
+            }
+        }
+    }
+
+    #[inline(always)]
+    pub fn nullary_fn_ptr(&mut self) -> unsafe extern "C" fn() -> i32 {
+        unsafe { mem::transmute(self.mcbase as usize) }
+    }
+
     /// Checks whether the current code pointer is within the bounds of the allocated memory block.
     fn in_bound(&self) -> bool {
         self.mcodeptr as usize <= self.bound_ptr() - size_of::<Instruction>()
+    }
+}
+
+impl CodegenData {
+    fn written_memory(&self) -> &[u8] {
+        let len = (self.mcodeptr as usize) - (self.mcbase as usize);
+        let ptr = self.mcbase as *const u8;
+
+        assert_eq!(len % 4, 0, "Len is not a multiple of 4");
+        assert_eq!(
+            ptr as usize % mem::align_of::<u32>(),
+            0,
+            "Memory not u32 aligned"
+        );
+        assert!(self.len >= len, "Requested length exceeds memory map!");
+
+        unsafe { slice::from_raw_parts(ptr, len) }
+    }
+}
+
+impl Display for CodegenData {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let decoded_iter = disasm(self.written_memory(), self.mcbase as u64);
+        for instr in decoded_iter {
+            match instr {
+                Ok(instr) => {
+                    let encoding = instr.opcode().to_le_bytes();
+                    let enc_str = encoding.map(|e| format!("{e:02x}")).join(" ");
+                    _ = write!(f, "{:#x}: {enc_str}      {instr}\n", instr.address());
+                }
+                Err(err) => {
+                    _ = write!(f, "{err}\n");
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 

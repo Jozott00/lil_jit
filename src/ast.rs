@@ -77,7 +77,7 @@ impl<'a> AstNode for Expr<'a> {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum ExprKind<'a> {
-    IntegerLiteral(i64),
+    IntegerLiteral(i32),
     StringLiteral(&'a str),
     FunctionCall(FunctionCallData<'a>),
     BinaryExpr(Box<Expr<'a>>, BinaryOp, Box<Expr<'a>>),

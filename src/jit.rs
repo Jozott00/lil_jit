@@ -40,14 +40,30 @@ impl<'a> JIT<'a> {
     pub fn compile(&'a mut self, funcname: &'a str) {
         log::info!(target: "verbose", "COMPILING {} ...", funcname);
 
-        let lir = compile_to_lir(self.jit_data.uncompiled_funcs.get("main").unwrap());
+        let uncompiled_func = self
+            .jit_data
+            .uncompiled_funcs
+            .remove(funcname)
+            .expect("Tried to compile unknown function");
+
+        let lir = compile_to_lir(uncompiled_func);
         log::info!(target: "dump-ir", "------\nLIR DUMP FOR {}:\n{}\n------\n", funcname, lir);
 
         let reg_mapping = alloc_reg::<Arm64>(&lir);
         log::info!(target: "dump-rec-alloc", "------\nREGISTER ALLOCATION DUMP FOR {}:\n{:?}\n------\n", funcname, reg_mapping);
 
         let func_info = FuncInfo::new(funcname, lir, reg_mapping);
-        compile_func::<Arm64>(func_info, &mut self.jit_data);
+        let mut code_info = compile_func::<Arm64>(func_info, &mut self.jit_data);
+        log::info!(target: "dump-disasm", "-----\nDISASSEMBLY FOR {}:\n{}\n-------\n", funcname, code_info.codegen_data);
+
+        // TODO: REMOVE -- just a demo
+        code_info.codegen_data.make_executable();
+        let func = code_info.codegen_data.nullary_fn_ptr();
+        let result = unsafe { func() };
+        println!("Received result: {}", result);
+
+        // add compiled function
+        self.jit_data.compiled_funcs.insert(funcname, code_info);
     }
 }
 

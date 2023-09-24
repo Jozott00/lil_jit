@@ -25,6 +25,9 @@ struct Cli {
     #[arg(long)]
     dump_reg_alloc: bool,
 
+    #[arg(long)]
+    dump_disasm: bool,
+
     #[arg(long, short)]
     verbose: bool,
 }
@@ -37,6 +40,9 @@ fn main() {
     LILLOGGER
         .dump_reg_alloc
         .store(cli.dump_reg_alloc, Ordering::Relaxed);
+    LILLOGGER
+        .dump_disasm
+        .store(cli.dump_disasm, Ordering::Relaxed);
     log::set_logger(&LILLOGGER).unwrap();
     log::set_max_level(LevelFilter::Info);
 
@@ -57,6 +63,6 @@ fn main() {
         exit(1)
     });
 
-    let mut jit = JIT::new(&ast, cli.verbose, cli.dump_ir);
+    let mut jit = JIT::new(&ast);
     jit.run();
 }
