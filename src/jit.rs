@@ -7,6 +7,8 @@ use crate::ast::{FuncDec, Program};
 use crate::jit::funcinfo::FuncInfo;
 use crate::jit::jitdata::JitData;
 use crate::jit::lir::compile_to_lir;
+use crate::jit::reg_alloc::alloc_reg;
+use crate::jit::reg_alloc::reg_def::Arm64;
 
 mod codegendata;
 mod codeinfo;
@@ -39,18 +41,13 @@ impl<'a> JIT<'a> {
     }
 
     pub fn compile(&'a mut self, funcname: &'a str) {
-        if self.verbose {
-            println!("COMPILING {}", funcname)
-        }
+        log::info!(target: "verbose", "COMPILING {} ...", funcname);
 
         let lir = compile_to_lir(self.jit_data.uncompiled_funcs.get("main").unwrap());
+        log::info!(target: "dump-ir", "------\nLIR DUMP FOR {}:\n{}\n------\n", funcname, lir);
 
-        if (self.dump_ir) {
-            println!("IR DUMP FOR {}", funcname);
-            for i in &lir {
-                println!("{:?}", i);
-            }
-        }
+        let reg_mapping = alloc_reg::<Arm64>(&lir);
+        log::info!(target: "dump-rec-alloc", "------\nREGISTER ALLOCATION DUMP FOR {}:\n{:?}\n------\n", funcname, reg_mapping);
 
         // reg alloc for main
         // compile entry function
@@ -82,7 +79,7 @@ mod tests {
     #[test]
     fn test_minimal_prog() {
         let prog = create_prog("fn main() {}");
-        let mut jit = JIT::new(&prog);
+        let mut jit = JIT::new(&prog, false, false);
         jit.run();
     }
 }

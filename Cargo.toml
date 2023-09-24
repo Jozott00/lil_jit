@@ -12,3 +12,4 @@ armoured_rust = { git = "https://github.com/Jozott00/ARMoured_rust", branch = "m
 libc = "0.2.148"
 log = "0.4.20"
 clap = { version = "4.4.4", features = ["derive"] }
+lazy_static = "1.4.0"
