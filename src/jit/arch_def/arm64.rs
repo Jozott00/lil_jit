@@ -13,6 +13,10 @@ impl RegDefinition for Arm64 {
         return &CALLER_REGS;
     }
 
+    fn ret_reg() -> Register {
+        0
+    }
+
     fn temp1() -> Register {
         0
     }

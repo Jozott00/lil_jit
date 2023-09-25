@@ -4,13 +4,17 @@ use crate::jit::codegendata::CodegenData;
 use crate::jit::codeinfo::CodeInfo;
 use crate::jit::funcinfo::FuncInfo;
 use crate::jit::jitdata::JitData;
-use crate::jit::lir::{LirReg, LIR};
+use crate::jit::lir::{Label, LirReg, LIR};
 use crate::jit::reg_alloc::reg_off::RegOff;
+use armoured_rust::instruction_encoding::branch_exception_system::unconditional_branch_immediate::{UnconditionalBranchImmediate, UnconditionalBranchImmediateWithAddress};
 use armoured_rust::instruction_encoding::branch_exception_system::unconditional_branch_register::UnconditionalBranchRegister;
 use armoured_rust::instruction_encoding::common_aliases::CommonAliases;
 use armoured_rust::instruction_encoding::data_proc_imm::mov_wide_imm::MovWideImmediate;
-use armoured_rust::types::HW;
+
+use armoured_rust::instruction_encoding::branch_exception_system::compare_and_branch_imm::CompareAndBranchImm;
+use armoured_rust::types::{InstructionPointer, HW};
 use log::warn;
+use std::collections::HashMap;
 use std::marker::PhantomData;
 
 pub fn compile_func<'a, 'b, D: RegDefinition>(
@@ -28,6 +32,8 @@ struct Compiler<'a, 'b, D: RegDefinition> {
     reg_def: PhantomData<D>, // to be able to use the generic static type RegDefinition
     jit_data: &'b JitData<'a>,
     code_info: CodeInfo<'a>,
+    label_indices: HashMap<Label, usize>,
+    patch_requests: HashMap<Label, Vec<(LIR, InstructionPointer)>>,
 }
 
 impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
@@ -38,17 +44,27 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
             reg_def: Default::default(),
             jit_data,
             code_info,
+            label_indices: Default::default(),
+            patch_requests: Default::default(),
         }
     }
     fn compile(mut self) -> CodeInfo<'a> {
+        // TODO: move arguments to allocated registers
+        // Be careful: if allocated registers are caller saved, this might result in collisions -> argument variables must not get caller saved registers
+
         let instrs = &self.code_info.func_info.lir().instrs().to_vec();
 
         for instr in instrs {
             self.compile_instr(instr);
         }
 
+        if !self.patch_requests.is_empty() {
+            panic!("Some branches could not be patched!")
+        }
+
         self.code_info
     }
+
     fn compile_instr(&mut self, instr: &LIR) {
         // TODO: some way without coping the whole function ir?
         match instr {
@@ -57,18 +73,39 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
                 let rhs = self.load_reg(rhs, D::temp2());
                 let dreg = self.get_dst(dest, D::temp1());
 
-                todo!("Implement binary operation code generation");
+                let cd = self.cd();
+
                 match op {
-                    BinaryOp::Add => {}
-                    BinaryOp::Minus => {}
-                    BinaryOp::Multi => {}
-                    BinaryOp::Divide => {}
-                    BinaryOp::Equals => {}
-                    BinaryOp::NotEqual => {}
-                    BinaryOp::Greater => {}
-                    BinaryOp::GreaterEqual => {}
-                    BinaryOp::Less => {}
-                    BinaryOp::LessEqual => {}
+                    BinaryOp::Add => {
+                        cd.add_32_reg(dreg, lhs, rhs);
+                    }
+                    BinaryOp::Minus => {
+                        cd.sub_32_reg(dreg, lhs, rhs);
+                    }
+                    BinaryOp::Multi => {
+                        todo!()
+                    }
+                    BinaryOp::Divide => {
+                        todo!()
+                    }
+                    BinaryOp::Equals => {
+                        todo!()
+                    }
+                    BinaryOp::NotEqual => {
+                        todo!()
+                    }
+                    BinaryOp::Greater => {
+                        todo!()
+                    }
+                    BinaryOp::GreaterEqual => {
+                        todo!()
+                    }
+                    BinaryOp::Less => {
+                        todo!()
+                    }
+                    BinaryOp::LessEqual => {
+                        todo!()
+                    }
                 }
 
                 // if dest is offset, store dreg on stack at offset
@@ -79,7 +116,9 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
                 let dreg = self.get_dst(dest, D::temp1());
 
                 let cd = self.cd();
-                cd.mov_64_reg(src, dreg);
+                if src != dreg {
+                    cd.mov_64_reg(dreg, src);
+                }
 
                 self.store_dst(dest, dreg);
             }
@@ -97,17 +136,92 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
 
                 self.store_dst(dest, dreg);
             }
-            LIR::Label(_) => {
-                todo!()
+            LIR::Label(label) => {
+                let index = self.code_info.codegen_data.ins_count();
+                self.label_indices.insert(*label, index);
+
+                let Some(requests) = self.patch_requests.remove(label) else {
+                    return
+                };
+
+                // Since we now have the label, let's see if there are some patch requests and if so let's patch them
+                for (ins, ins_ptr) in &requests {
+                    let offset = self.code_info.codegen_data.code_ptr() as i32 - *ins_ptr as i32;
+
+                    match ins {
+                        LIR::Jump(_) => {
+                            self.cd().patch_at(*ins_ptr, |cd| {
+                                cd.b_from_byte_offset(offset);
+                            });
+                        }
+                        LIR::JumpIfFalse(lir_reg, _) => {
+                            let creg = self.load_reg(lir_reg, D::temp1());
+
+                            self.code_info.codegen_data.patch_at(*ins_ptr, |cd| {
+                                cd.cbz_32_from_byte_offset(creg, offset);
+                            })
+                        }
+                        _ => unimplemented!(),
+                    }
+                }
             }
-            LIR::Jump(_) => {
-                todo!()
+            LIR::Jump(label) => {
+                let Some(label_index) = self.label_indices.get(label) else {
+
+                    let code_ptr = self.code_info.codegen_data.code_ptr();
+                    match self.patch_requests.get_mut(label) {
+                        Some(requests) =>  requests.push((instr.clone(), code_ptr)),
+                        None => {self.patch_requests.insert(*label, vec!((instr.clone(), code_ptr)));},
+                    }
+
+                    self.cd().nop();
+                    return;
+                };
+
+                let label_index = *label_index;
+                let cd = self.cd();
+                let offset = label_index as i32 - cd.ins_count() as i32;
+                cd.b_from_byte_offset(offset);
             }
-            LIR::JumpIfFalse(_, _) => {
-                todo!()
+            LIR::JumpIfFalse(lir_reg, label) => {
+                let Some(label_index) = self.label_indices.get(label) else {
+
+                    let code_ptr = self.code_info.codegen_data.code_ptr();
+                    match self.patch_requests.get_mut(label) {
+                        Some(requests) =>  requests.push((instr.clone(), code_ptr)),
+                        None => {self.patch_requests.insert(*label, vec!((instr.clone(), code_ptr)));},
+                    }
+
+                    self.cd().nop();
+                    return;
+                };
+
+                let label_index = *label_index;
+                let creg = self.load_reg(lir_reg, D::temp1());
+                let cd = self.cd();
+                let offset = label_index as i32 - cd.ins_count() as i32;
+                cd.cbz_32_from_byte_offset(creg, offset);
             }
-            LIR::Call(_, _, _) => {
-                todo!()
+            LIR::Call(dest, func_name, args) => {
+                let dreg = self.get_dst(dest, D::temp1());
+
+                let func_ptr = match self.jit_data.compiled_funcs.get(func_name.as_str()) {
+                    Some(code_info) => code_info.codegen_data.base_ptr(),
+                    None => {
+                        todo!("Emit a stub and return the address of the stub");
+                    }
+                };
+
+                for (i, arg_reg) in args.iter().enumerate() {
+                    let r = self.load_reg(arg_reg, i as Register);
+                    self.mov_reg(i as Register, r)
+                    // TODO: handle spilled arguments
+                }
+
+                self.cd().bl_to_addr(func_ptr as usize);
+                self.mov_reg(dreg, D::ret_reg());
+
+                self.store_dst(dest, dreg);
             }
             LIR::Return(src) => {
                 let src = self.load_reg(src, D::temp1());
@@ -116,6 +230,12 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
                 cd.mov_64_reg(0, src);
                 cd.ret()
             }
+        }
+    }
+
+    fn mov_reg(&mut self, dest: Register, src: Register) {
+        if dest != src {
+            self.cd().mov_64_reg(dest, src)
         }
     }
 

@@ -7,12 +7,14 @@ use std::{mem, ptr, slice};
 use armoured_rust::instruction_encoding::{AddressableInstructionProcessor, InstructionProcessor, InstructionSet, InstructionSetWithAddress};
 use armoured_rust::instruction_encoding::branch_exception_system::{BranchExceptionSystem, BranchExceptionSystemWithAddress};
 use armoured_rust::instruction_encoding::branch_exception_system::barriers::Barriers;
+use armoured_rust::instruction_encoding::branch_exception_system::compare_and_branch_imm::{CompareAndBranchImm, CompareAndBranchImmWithAddress};
 use armoured_rust::instruction_encoding::branch_exception_system::conditional_branch_imm::{ConditionalBranchImmediate, ConditionalBranchImmediateWithAddress};
 use armoured_rust::instruction_encoding::branch_exception_system::exception_generation::ExceptionGeneration;
 use armoured_rust::instruction_encoding::branch_exception_system::pstate::PStateInstructions;
 use armoured_rust::instruction_encoding::branch_exception_system::system_instr_w_register_arg::SystemInstructionsWithRegArg;
 use armoured_rust::instruction_encoding::branch_exception_system::system_instructions::SystemInstructions;
 use armoured_rust::instruction_encoding::branch_exception_system::system_register_move::SystemRegisterMove;
+use armoured_rust::instruction_encoding::branch_exception_system::test_and_branch_imm::{TestAndBranchImmediate, TestAndBranchImmediateWithAddress};
 use armoured_rust::instruction_encoding::branch_exception_system::unconditional_branch_immediate::{UnconditionalBranchImmediate, UnconditionalBranchImmediateWithAddress};
 use armoured_rust::instruction_encoding::branch_exception_system::unconditional_branch_register::UnconditionalBranchRegister;
 use armoured_rust::instruction_encoding::common_aliases::CommonAliases;
@@ -100,6 +102,35 @@ impl CodegenData {
             len: page_size,
             mcodeptr: addr as InstructionPointer,
         })
+    }
+
+    pub fn ins_count(&self) -> usize {
+        /// The number of instructions currently stored.
+        // TODO: This should not be architecture dependent
+        // Devide by 4 because all instructions on ARM64 are 32bit long
+        return (self.mcodeptr as usize - self.mcbase as usize) / 4;
+    }
+
+    pub fn code_ptr(&self) -> InstructionPointer {
+        return self.mcodeptr;
+    }
+
+    pub fn base_ptr(&self) -> InstructionPointer {
+        return self.mcbase;
+    }
+
+    pub fn patch_at<F>(&mut self, dst: InstructionPointer, function: F)
+    where
+        F: FnOnce(&mut Self) -> (),
+    {
+        // FIXME: REquire that instruction is in the correct range
+
+        let old_mcodeptr = self.mcodeptr;
+        self.mcodeptr = dst;
+
+        function(self);
+
+        self.mcodeptr = old_mcodeptr;
     }
 }
 
@@ -378,6 +409,14 @@ impl DataProcessingThreeSource<()> for CodegenData {}
 impl DataProcessingImmediateWithAddress<()> for CodegenData {}
 
 impl PcRelAddressingWithAddress<()> for CodegenData {}
+
+impl CompareAndBranchImm<()> for CodegenData {}
+
+impl TestAndBranchImmediate<()> for CodegenData {}
+
+impl CompareAndBranchImmWithAddress<()> for CodegenData {}
+
+impl TestAndBranchImmediateWithAddress<()> for CodegenData {}
 
 impl BranchExceptionSystemWithAddress<()> for CodegenData {}
 

@@ -338,6 +338,7 @@ fn parse_grouped_expr(input: Span) -> IResult<Span, Expr> {
 
 fn parse_int_lit(input: Span) -> IResult<Span, Expr> {
     let (input, num_span) = digit1(input)?;
+    // FIXME: check if number does not exceed 32bit
     let num = num_span.fragment().parse::<i32>().unwrap();
 
     let expr = Expr {

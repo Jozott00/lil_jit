@@ -2,10 +2,18 @@
 
 An excuse to play with JIT compilers. 🐣
 
+## Features
+
+- A parser build with `nom` for a self designed language.
+- Some error checking like missing main function on the AST (but no typechecking because the language doesn't require any).
+- A custom architecture independent Assembly like IR (Intermediate representation).
+- Fast register allocation with LSRA.
+- Code compilation to binary encoded 64-Bit Arm.
+
 ## Build and Run
 
 ```bash
-cargo run
+cargo run examples/fib.txt
 ```
 
 ## Lil-lang
