@@ -50,7 +50,7 @@ impl<'a> JIT<'a> {
         log::info!(target: "dump-ir", "------\nLIR DUMP FOR {}:\n{}\n------\n", funcname, lir);
 
         let reg_mapping = alloc_reg::<Arm64>(&lir);
-        log::info!(target: "dump-rec-alloc", "------\nREGISTER ALLOCATION DUMP FOR {}:\n{:?}\n------\n", funcname, reg_mapping);
+        log::info!(target: "dump-reg-alloc", "------\nREGISTER ALLOCATION DUMP FOR {}:\n{:?}\n------\n", funcname, reg_mapping);
 
         let func_info = FuncInfo::new(funcname, lir, reg_mapping);
         let mut code_info = compile_func::<Arm64>(func_info, &mut self.jit_data);

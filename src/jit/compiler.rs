@@ -1,4 +1,21 @@
+use std::collections::HashMap;
+use std::marker::PhantomData;
+
+use armoured_rust::instruction_encoding::branch_exception_system::compare_and_branch_imm::CompareAndBranchImm;
+use armoured_rust::instruction_encoding::branch_exception_system::unconditional_branch_immediate::{UnconditionalBranchImmediate, UnconditionalBranchImmediateWithAddress};
+use armoured_rust::instruction_encoding::branch_exception_system::unconditional_branch_register::UnconditionalBranchRegister;
+use armoured_rust::instruction_encoding::common_aliases::CommonAliases;
+use armoured_rust::instruction_encoding::data_proc_imm::mov_wide_imm::MovWideImmediate;
+use armoured_rust::instruction_encoding::data_proc_reg::conditional_select::ConditionalSelect;
+use armoured_rust::instruction_encoding::data_proc_reg::data_proc_two_src::DataProcessingTwoSource;
+use armoured_rust::instruction_encoding::loads_and_stores::load_store_reg_pre_post_indexed::LoadStoreRegisterPrePostIndexed;
+use armoured_rust::types::{HW, InstructionPointer};
+use armoured_rust::types::condition::Condition::{EQ, GE, GT, LE, LT, NE};
+use armoured_rust::types::register::WZR;
+use log::warn;
+
 use crate::ast::BinaryOp;
+use crate::built_in::BUILTIN_FUNCS;
 use crate::jit::arch_def::{RegDefinition, Register};
 use crate::jit::codegendata::CodegenData;
 use crate::jit::codeinfo::CodeInfo;
@@ -6,18 +23,6 @@ use crate::jit::funcinfo::FuncInfo;
 use crate::jit::jitdata::JitData;
 use crate::jit::lir::{Label, LirReg, LIR};
 use crate::jit::reg_alloc::reg_off::RegOff;
-use armoured_rust::instruction_encoding::branch_exception_system::unconditional_branch_immediate::{UnconditionalBranchImmediate, UnconditionalBranchImmediateWithAddress};
-use armoured_rust::instruction_encoding::branch_exception_system::unconditional_branch_register::UnconditionalBranchRegister;
-use armoured_rust::instruction_encoding::common_aliases::CommonAliases;
-use armoured_rust::instruction_encoding::data_proc_imm::mov_wide_imm::MovWideImmediate;
-
-use crate::built_in::BUILTIN_FUNCS;
-use armoured_rust::instruction_encoding::branch_exception_system::compare_and_branch_imm::CompareAndBranchImm;
-use armoured_rust::instruction_encoding::loads_and_stores::load_store_reg_pre_post_indexed::LoadStoreRegisterPrePostIndexed;
-use armoured_rust::types::{InstructionPointer, HW};
-use log::warn;
-use std::collections::HashMap;
-use std::marker::PhantomData;
 
 pub fn compile_func<'a, 'b, D: RegDefinition>(
     func_info: FuncInfo<'a>,
@@ -31,7 +36,8 @@ pub fn compile_func<'a, 'b, D: RegDefinition>(
 ///
 /// A compiler can be invoked by `compile()` which consumes itself, and therefore isn't usable anymore.
 struct Compiler<'a, 'b, D: RegDefinition> {
-    reg_def: PhantomData<D>, // to be able to use the generic static type RegDefinition
+    reg_def: PhantomData<D>,
+    // to be able to use the generic static type RegDefinition
     jit_data: &'b JitData<'a>,
     code_info: CodeInfo<'a>,
     label_indices: HashMap<Label, usize>,
@@ -85,28 +91,52 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
                         cd.sub_32_reg(dreg, lhs, rhs);
                     }
                     BinaryOp::Multi => {
-                        todo!()
+                        cd.mul_32_reg(dreg, lhs, rhs);
                     }
                     BinaryOp::Divide => {
-                        todo!()
+                        cd.sdiv_32(dreg, lhs, rhs);
                     }
                     BinaryOp::Equals => {
-                        todo!()
+                        // FIXME: This code could be more readable with cmp and cset.
+                        // This code is functionally equal but less readable, also because csinc
+                        // needs to invert the condition.
+                        cd.subs_32_reg(WZR, lhs, rhs);
+                        cd.csinc_32(dreg, WZR, WZR, NE);
                     }
                     BinaryOp::NotEqual => {
-                        todo!()
+                        // FIXME: This code could be more readable with cmp and cset.
+                        // This code is functionally equal but less readable, also because csinc
+                        // needs to invert the condition.
+                        cd.subs_32_reg(WZR, lhs, rhs);
+                        cd.csinc_32(dreg, WZR, WZR, EQ);
                     }
                     BinaryOp::Greater => {
-                        todo!()
+                        // FIXME: This code could be more readable with cmp and cset.
+                        // This code is functionally equal but less readable, also because csinc
+                        // needs to invert the condition.
+                        cd.subs_32_reg(WZR, lhs, rhs);
+                        cd.csinc_32(dreg, WZR, WZR, LE);
                     }
                     BinaryOp::GreaterEqual => {
-                        todo!()
+                        // FIXME: This code could be more readable with cmp and cset.
+                        // This code is functionally equal but less readable, also because csinc
+                        // needs to invert the condition.
+                        cd.subs_32_reg(WZR, lhs, rhs);
+                        cd.csinc_32(dreg, WZR, WZR, LT);
                     }
                     BinaryOp::Less => {
-                        todo!()
+                        // FIXME: This code could be more readable with cmp and cset.
+                        // This code is functionally equal but less readable, also because csinc
+                        // needs to invert the condition.
+                        cd.subs_32_reg(WZR, lhs, rhs);
+                        cd.csinc_32(dreg, WZR, WZR, GE);
                     }
                     BinaryOp::LessEqual => {
-                        todo!()
+                        // FIXME: This code could be more readable with cmp and cset.
+                        // This code is functionally equal but less readable, also because csinc
+                        // needs to invert the condition.
+                        cd.subs_32_reg(WZR, lhs, rhs);
+                        cd.csinc_32(dreg, WZR, WZR, GT);
                     }
                 }
 
@@ -143,7 +173,7 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
                 self.label_indices.insert(*label, index);
 
                 let Some(requests) = self.patch_requests.remove(label) else {
-                    return
+                    return;
                 };
 
                 // Since we now have the label, let's see if there are some patch requests and if so let's patch them
@@ -169,11 +199,13 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
             }
             LIR::Jump(label) => {
                 let Some(label_index) = self.label_indices.get(label) else {
-
                     let code_ptr = self.code_info.codegen_data.code_ptr();
                     match self.patch_requests.get_mut(label) {
-                        Some(requests) =>  requests.push((instr.clone(), code_ptr)),
-                        None => {self.patch_requests.insert(*label, vec!((instr.clone(), code_ptr)));},
+                        Some(requests) => requests.push((instr.clone(), code_ptr)),
+                        None => {
+                            self.patch_requests
+                                .insert(*label, vec![(instr.clone(), code_ptr)]);
+                        }
                     }
 
                     self.cd().nop();
@@ -187,11 +219,13 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
             }
             LIR::JumpIfFalse(lir_reg, label) => {
                 let Some(label_index) = self.label_indices.get(label) else {
-
                     let code_ptr = self.code_info.codegen_data.code_ptr();
                     match self.patch_requests.get_mut(label) {
-                        Some(requests) =>  requests.push((instr.clone(), code_ptr)),
-                        None => {self.patch_requests.insert(*label, vec!((instr.clone(), code_ptr)));},
+                        Some(requests) => requests.push((instr.clone(), code_ptr)),
+                        None => {
+                            self.patch_requests
+                                .insert(*label, vec![(instr.clone(), code_ptr)]);
+                        }
                     }
 
                     self.cd().nop();
