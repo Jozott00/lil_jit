@@ -1,5 +1,6 @@
-use crate::jit::lir::{LirFunction, LirReg, LIR};
 use std::collections::HashMap;
+
+use crate::jit::lir::{LirFunction, LirReg, LIR};
 
 /// Vector of `LiveInterval`, representing all live intervals in functions.
 pub type LiveIntervals = Vec<LiveInterval>;
@@ -57,6 +58,9 @@ pub fn compute_live_intervals(func: &LirFunction) -> LiveIntervals {
                     update_var(a, i, &mut intervals);
                 }
             }
+            LIR::CallText(dest, _, _) => {
+                update_var(dest, i, &mut intervals);
+            }
             LIR::Return(src) => update_var(src, i, &mut intervals),
 
             // no lir regs to update
@@ -82,12 +86,15 @@ pub fn compute_live_intervals(func: &LirFunction) -> LiveIntervals {
 fn update_var(var: &LirReg, pos: usize, intervals: &mut HashMap<LirReg, LiveInterval>) {
     let Some(entry) = intervals.get_mut(var) else {
         // if var not yet in intervals, add it
-        intervals.insert(var.clone(), LiveInterval {
-            var: var.clone(),
-            start: pos,
-            end: pos,
-        });
-        return
+        intervals.insert(
+            var.clone(),
+            LiveInterval {
+                var: var.clone(),
+                start: pos,
+                end: pos,
+            },
+        );
+        return;
     };
 
     // update last occurrence

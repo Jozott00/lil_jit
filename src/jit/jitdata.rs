@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::ast::FuncDec;
 use crate::jit::codeinfo::CodeInfo;
@@ -7,6 +7,7 @@ use crate::jit::codeinfo::CodeInfo;
 pub struct JitData<'a> {
     pub compiled_funcs: HashMap<&'a str, CodeInfo<'a>>,
     pub uncompiled_funcs: HashMap<&'a str, &'a FuncDec<'a>>,
+    pub texts: HashSet<String>,
 }
 
 impl<'a> JitData<'a> {
@@ -16,6 +17,7 @@ impl<'a> JitData<'a> {
         Self {
             uncompiled_funcs,
             compiled_funcs: HashMap::default(),
+            texts: HashSet::default(),
         }
     }
 }
@@ -25,6 +27,7 @@ impl<'a> Default for JitData<'a> {
         Self {
             compiled_funcs: HashMap::new(),
             uncompiled_funcs: HashMap::new(),
+            texts: HashSet::default(),
         }
     }
 }

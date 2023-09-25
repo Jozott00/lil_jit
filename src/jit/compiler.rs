@@ -26,7 +26,7 @@ use crate::jit::reg_alloc::reg_off::RegOff;
 
 pub fn compile_func<'a, 'b, D: RegDefinition>(
     func_info: FuncInfo<'a>,
-    jit_data: &'b JitData<'a>,
+    jit_data: &'b mut JitData<'a>,
 ) -> CodeInfo<'a> {
     let compiler: Compiler<D> = Compiler::<D>::new(func_info, jit_data);
     compiler.compile()
@@ -38,14 +38,14 @@ pub fn compile_func<'a, 'b, D: RegDefinition>(
 struct Compiler<'a, 'b, D: RegDefinition> {
     reg_def: PhantomData<D>,
     // to be able to use the generic static type RegDefinition
-    jit_data: &'b JitData<'a>,
+    jit_data: &'b mut JitData<'a>,
     code_info: CodeInfo<'a>,
     label_indices: HashMap<Label, usize>,
     patch_requests: HashMap<Label, Vec<(LIR, InstructionPointer)>>,
 }
 
 impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
-    fn new(func_info: FuncInfo<'a>, jit_data: &'b JitData<'a>) -> Self {
+    fn new(func_info: FuncInfo<'a>, jit_data: &'b mut JitData<'a>) -> Self {
         let code_info = CodeInfo::new(func_info);
 
         Compiler {
@@ -241,6 +241,7 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
             LIR::Call(dest, func_name, args) => {
                 let dreg = self.get_dst(dest, D::temp1());
 
+                // TODO: Move to the start of the function
                 // store x30 (link) on stack
                 self.cd().str_64_imm_pre_index(30, 31, -16);
 
@@ -268,6 +269,41 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
 
                 self.store_dst(dest, dreg);
 
+                self.cd().ldr_64_imm_post_index(30, 31, 16);
+            }
+            LIR::CallText(dest, has_newline, text) => {
+                let dreg = self.get_dst(dest, D::temp1());
+
+                // TODO: Move to the start of the function
+                // store x30 (link) on stack
+                self.cd().str_64_imm_pre_index(30, 31, -16);
+
+                let func_ptr = BUILTIN_FUNCS
+                    .get(if *has_newline {
+                        "showtextln"
+                    } else {
+                        "showtext"
+                    })
+                    .unwrap()
+                    .mem_ptr;
+
+                self.jit_data.texts.insert(text.to_string());
+                let text_ptr = self.jit_data.texts.get(text).unwrap().as_ptr() as usize;
+
+                let p1_16 = (text_ptr & 0xFFFF) as u16;
+                let p2_16 = ((text_ptr >> 16) & 0xFFFF) as u16;
+                let p3_16 = ((text_ptr >> 32) & 0xFFFF) as u16;
+                let p4_16 = ((text_ptr >> 48) & 0xFFFF) as u16;
+
+                self.cd().movz_64_imm(0, p1_16);
+                self.cd().movk_64_imm_lsl(0, p2_16, HW::LSL16);
+                self.cd().movk_64_imm_lsl(0, p3_16, HW::LSL32);
+                self.cd().movk_64_imm_lsl(0, p4_16, HW::LSL48);
+
+                self.cd().bl_to_addr(func_ptr);
+                self.mov_reg(dreg, D::ret_reg());
+
+                self.store_dst(dest, dreg);
                 self.cd().ldr_64_imm_post_index(30, 31, 16);
             }
             LIR::Return(src) => {

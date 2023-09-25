@@ -56,10 +56,11 @@ impl<'a> JIT<'a> {
         let mut code_info = compile_func::<Arm64>(func_info, &mut self.jit_data);
         log::info!(target: "dump-disasm", "-----\nDISASSEMBLY FOR {}:\n{}\n-------\n", funcname, code_info.codegen_data);
 
-        // TODO: REMOVE -- just a demo
         code_info.codegen_data.make_executable();
         let func = code_info.codegen_data.nullary_fn_ptr();
         let result = unsafe { func() };
+
+        // TODO: REMOVE -- just a demo
         println!("Received result: {}", result);
 
         // add compiled function
