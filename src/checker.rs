@@ -4,6 +4,7 @@ use std::collections::HashSet;
 use crate::ast::Program;
 use crate::ast::{AstNode, Stmt, StmtKind};
 use crate::ast::{Expr, ExprKind, FuncDec};
+use crate::built_in::BUILTIN_FUNCS;
 use crate::error::LilError;
 use crate::visitor;
 use crate::visitor::{walk_expr, walk_funcdec, walk_stmt, walk_stmt_list, NodeVisitor};
@@ -21,7 +22,7 @@ pub fn check_lil(program: &Program) -> Result<(), Vec<LilError>> {
 #[derive(Debug, Default)]
 struct Scope<'a> {
     enclosing: Option<Box<Scope<'a>>>,
-    functions: HashMap<&'a str, usize>,
+    functions: HashMap<&'a str, u8>,
     variables: HashSet<&'a str>,
 }
 
@@ -51,7 +52,7 @@ impl<'a> Scope<'a> {
         }
     }
 
-    fn get_function(&self, name: &str) -> Option<usize> {
+    fn get_function(&self, name: &str) -> Option<u8> {
         if self.functions.contains_key(name) {
             return Some(*self.functions.get(name).unwrap());
         }
@@ -62,7 +63,7 @@ impl<'a> Scope<'a> {
         }
     }
 
-    fn add_function(&mut self, name: &'a str, arity: usize) {
+    fn add_function(&mut self, name: &'a str, arity: u8) {
         self.functions.insert(name, arity);
     }
 
@@ -90,8 +91,11 @@ struct Checker<'a> {
 
 impl<'a> Checker<'a> {
     fn new(prog: &'a Program<'a>) -> Self {
-        let scope = Scope::new();
-        // FIXME: Insert builtin functions into scope
+        let mut scope = Scope::new();
+
+        for (name, metadata) in BUILTIN_FUNCS.iter() {
+            scope.add_function(name, metadata.arity);
+        }
 
         Checker {
             prog,
@@ -145,7 +149,8 @@ impl<'a> NodeVisitor<'a> for Checker<'a> {
             args.insert(arg.name);
         }
 
-        self.scope.add_function(node.name.name, node.params.len());
+        self.scope
+            .add_function(node.name.name, node.params.len() as u8);
 
         if node.name.name == "main" && node.params.len() != 0 {
             self.errors.push(LilError {
@@ -180,7 +185,7 @@ impl<'a> NodeVisitor<'a> for Checker<'a> {
                     return;
                 };
 
-                if arity != func_data.arguments.len() {
+                if arity != func_data.arguments.len() as u8 {
                     self.errors.push(LilError {
                         header: "Wrong Number of Arguments".to_string(),
                         location: Some(node.location()),

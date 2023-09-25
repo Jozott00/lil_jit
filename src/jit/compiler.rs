@@ -11,7 +11,9 @@ use armoured_rust::instruction_encoding::branch_exception_system::unconditional_
 use armoured_rust::instruction_encoding::common_aliases::CommonAliases;
 use armoured_rust::instruction_encoding::data_proc_imm::mov_wide_imm::MovWideImmediate;
 
+use crate::built_in::BUILTIN_FUNCS;
 use armoured_rust::instruction_encoding::branch_exception_system::compare_and_branch_imm::CompareAndBranchImm;
+use armoured_rust::instruction_encoding::loads_and_stores::load_store_reg_pre_post_indexed::LoadStoreRegisterPrePostIndexed;
 use armoured_rust::types::{InstructionPointer, HW};
 use log::warn;
 use std::collections::HashMap;
@@ -205,13 +207,22 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
             LIR::Call(dest, func_name, args) => {
                 let dreg = self.get_dst(dest, D::temp1());
 
-                let func_ptr = match self.jit_data.compiled_funcs.get(func_name.as_str()) {
-                    Some(code_info) => code_info.codegen_data.base_ptr(),
-                    None => {
-                        todo!("Emit a stub and return the address of the stub");
+                // store x30 (link) on stack
+                self.cd().str_64_imm_pre_index(30, 31, -16);
+
+                // check if func is builtin or custom
+                let func_ptr = if let Some(built_in) = BUILTIN_FUNCS.get(func_name.as_str()) {
+                    built_in.mem_ptr as InstructionPointer
+                } else {
+                    match self.jit_data.compiled_funcs.get(func_name.as_str()) {
+                        Some(code_info) => code_info.codegen_data.base_ptr(),
+                        None => {
+                            todo!("Emit a stub and return the address of the stub");
+                        }
                     }
                 };
 
+                // move arg registers to argument passing registers
                 for (i, arg_reg) in args.iter().enumerate() {
                     let r = self.load_reg(arg_reg, i as Register);
                     self.mov_reg(i as Register, r)
@@ -222,6 +233,8 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
                 self.mov_reg(dreg, D::ret_reg());
 
                 self.store_dst(dest, dreg);
+
+                self.cd().ldr_64_imm_post_index(30, 31, 16);
             }
             LIR::Return(src) => {
                 let src = self.load_reg(src, D::temp1());
