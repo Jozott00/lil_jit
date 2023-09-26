@@ -1,13 +1,15 @@
 
 fn test(i) {
+    showln(i)
+
     if i < 1 {
         return 1
     }
 
-    return 2
+
+    return 1 + test(i - 1)
 }
 
 fn main() {
-    test(2)
-    return test(0)
+    return test(3)
  }

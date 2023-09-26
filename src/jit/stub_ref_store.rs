@@ -1,13 +1,12 @@
 use armoured_rust::types::InstructionPointer;
 use std::collections::{HashMap, HashSet};
 
-// TODO: Maybe store (function_name, vec![instruction_ptr]) as a function could call a unresolved function multiple times
 #[derive(Debug, Default)]
 pub struct StubRefStore<'a> {
     // holds for a instruction pointer of a call the function name that was tried to be called
     ref_to_func: HashMap<InstructionPointer, &'a str>,
     // holds for a function name all references that have to get patched
-    func_to_refs: HashMap<&'a str, HashSet<(&'a str, InstructionPointer)>>,
+    func_to_refs: HashMap<&'a str, HashSet<(&'a str, Vec<InstructionPointer>)>>,
 }
 
 impl<'a> StubRefStore<'a> {
@@ -16,19 +15,21 @@ impl<'a> StubRefStore<'a> {
     /// ## Arguments
     /// - `func_name`: The function that was not yet resolved
     /// - `caller_func`: The function that calls the `func_name` function
-    /// - `at_instr_ptr`: The instruction pointer of `caller_func` were the `func_name` was called
+    /// - `call_ptrs`: The instruction pointers of `caller_func` were the `func_name` was called
     pub fn add_unresolved(
         &mut self,
         func_name: &'a str,
         caller_func: &'a str,
-        at_instr_ptr: InstructionPointer,
+        call_ptrs: Vec<InstructionPointer>,
     ) {
-        self.ref_to_func.insert(at_instr_ptr, func_name);
+        for i in &call_ptrs {
+            self.ref_to_func.insert(*i, func_name);
+        }
 
         self.func_to_refs
             .entry(func_name)
             .or_insert_with(HashSet::new)
-            .insert((caller_func, at_instr_ptr));
+            .insert((caller_func, call_ptrs));
     }
 
     /// Resolve a function, returning all its callers for patching
@@ -37,10 +38,12 @@ impl<'a> StubRefStore<'a> {
     pub fn resolve_function(
         &mut self,
         func_name: &'a str,
-    ) -> Option<HashSet<(&'a str, InstructionPointer)>> {
+    ) -> Option<HashSet<(&'a str, Vec<InstructionPointer>)>> {
         if let Some(callers) = self.func_to_refs.remove(func_name) {
-            for (_, caller_addr) in &callers {
-                self.ref_to_func.remove(&caller_addr);
+            for (_, caller_addrs) in &callers {
+                for i in caller_addrs {
+                    self.ref_to_func.remove(&i);
+                }
             }
             Some(callers)
         } else {

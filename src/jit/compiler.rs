@@ -10,6 +10,7 @@ use armoured_rust::instruction_encoding::common_aliases::CommonAliases;
 use armoured_rust::instruction_encoding::data_proc_imm::mov_wide_imm::MovWideImmediate;
 use armoured_rust::instruction_encoding::data_proc_reg::conditional_select::ConditionalSelect;
 use armoured_rust::instruction_encoding::data_proc_reg::data_proc_two_src::DataProcessingTwoSource;
+use armoured_rust::instruction_encoding::loads_and_stores::load_store_reg_pair_post_indexed::LoadStoreRegisterPairPostIndexed;
 use armoured_rust::instruction_encoding::loads_and_stores::load_store_reg_pre_post_indexed::LoadStoreRegisterPrePostIndexed;
 use armoured_rust::types::{HW, InstructionPointer};
 use armoured_rust::types::condition::Condition::{EQ, GE, GT, LE, LT, NE};
@@ -46,7 +47,7 @@ struct Compiler<'a, 'b, D: RegDefinition> {
     code_info: CodeInfo<'a>,
     label_indices: HashMap<Label, usize>,
     patch_requests: HashMap<Label, Vec<(LIR, InstructionPointer)>>,
-    stub_refs: HashMap<&'a str, InstrCount>,
+    stub_refs: HashMap<&'a str, Vec<InstrCount>>,
 }
 
 impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
@@ -76,11 +77,16 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
         }
 
         // store stub references
-        for (func, cnt) in &self.stub_refs {
-            let iptr = self.code_info.codegen_data.code_ptr_from_instr_count(*cnt);
-            self.jit_data
-                .stub_ref_store
-                .add_unresolved(func, self.code_info.func_info.name(), iptr)
+        for (func, instr_cnts) in &self.stub_refs {
+            let call_ptrs = instr_cnts
+                .iter()
+                .map(|cnt| self.code_info.codegen_data.code_ptr_from_instr_count(*cnt))
+                .collect();
+            self.jit_data.stub_ref_store.add_unresolved(
+                func,
+                self.code_info.func_info.name(),
+                call_ptrs,
+            )
         }
 
         self.code_info
@@ -90,8 +96,7 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
         // save x30 (link) on stack
         self.cd().str_64_imm_pre_index(30, 31, -16);
 
-        // TODO: also handle arguments in stub!
-        // Be careful: if allocated registers are caller saved, this might result in collisions -> argument variables must not get caller saved registers
+        // TODO: Be careful: if allocated registers are caller saved, this might result in collisions -> argument variables must not get caller saved registers
     }
 
     fn compile_epilog(&mut self) {
@@ -174,7 +179,7 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
                 let dreg = self.get_dst(dest, D::temp1());
                 // TODO: Check if register to load is spilled and handle it!
                 assert!(
-                    D::caller_saved().len() > *i,
+                    D::arg_regs().len() > *i,
                     "argument would be spilled! spilling isnt implemented yet!"
                 );
                 self.cd().mov_64_reg(dreg, *i as Register);
@@ -309,7 +314,6 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
                 // jit_data.stub_ref_store. The late storage is required, as the method may extend
                 // while compilation!
                 if is_stub_call {
-                    let code_ptr = self.cd().code_ptr();
                     let instr_count = self.cd().instr_count();
                     let func_name = self
                         .jit_data
@@ -318,7 +322,10 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
                         .expect("As function not yet compiled it must be uncompiled_function map!")
                         .name
                         .name;
-                    self.stub_refs.insert(func_name, instr_count);
+                    self.stub_refs
+                        .entry(func_name)
+                        .or_insert_with(Vec::new)
+                        .push(instr_count);
                 }
 
                 self.cd().bl_to_addr(func_ptr as usize);

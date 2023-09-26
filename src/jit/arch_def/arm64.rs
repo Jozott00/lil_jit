@@ -13,6 +13,11 @@ impl RegDefinition for Arm64 {
         return &CALLER_REGS;
     }
 
+    fn arg_regs() -> &'static [Register] {
+        const ARG_REGS: [Register; 8] = [0, 1, 2, 3, 4, 5, 6, 7];
+        return &ARG_REGS;
+    }
+
     fn ret_reg() -> Register {
         0
     }

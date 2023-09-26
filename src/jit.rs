@@ -126,15 +126,19 @@ impl<'a> JIT<'a> {
         let func_ptr = code_info.codegen_data.base_ptr();
 
         // patch all references
-        for (caller_func, code_ref) in refs {
+        for (caller_func, code_refs) in refs {
             let caller_info =
                 self.jit_data.compiled_funcs.get_mut(caller_func).expect(
                     "Caller function must be compiled already, otherwise it could call stub!",
                 );
 
-            caller_info.codegen_data.patch_at(code_ref, |cd| {
-                cd.bl_to_addr(func_ptr as usize);
-            });
+            for code_ref in code_refs {
+                caller_info.codegen_data.patch_at(code_ref, |cd| {
+                    cd.bl_to_addr(func_ptr as usize);
+                });
+            }
+
+            info!(target: "dump-disasm", "-----\nDISASSEMBLY AFTER PATCH FOR {}:\n{}-------\n", caller_func, caller_info.codegen_data);
         }
     }
 }

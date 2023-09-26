@@ -214,6 +214,11 @@ mod tests {
             return &CALLER_REGS;
         }
 
+        fn arg_regs() -> &'static [Register] {
+            const ARG_REGS: [Register; 12] = [3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15];
+            return &ARG_REGS;
+        }
+
         fn ret_reg() -> Register {
             0
         }
