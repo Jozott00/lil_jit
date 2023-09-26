@@ -1,10 +1,14 @@
-use crate::ast;
-use crate::ast::{Expr, ExprKind, FuncDec, Program, Stmt, StmtKind};
-use crate::jit::lir::LirReg::{Tmp, Var};
-use crate::jit::lir::LIR::{Assign, BinaryExpr, Call, Jump, JumpIfFalse, LoadConst, Return};
-use crate::visitor::NodeVisitor;
 use std::fmt;
 use std::fmt::Formatter;
+
+use crate::ast;
+use crate::ast::ExprKind::StringLiteral;
+use crate::ast::{Expr, ExprKind, FuncDec, Program, Stmt, StmtKind};
+use crate::jit::lir::LirReg::{Tmp, Var};
+use crate::jit::lir::LIR::{
+    Assign, BinaryExpr, Call, CallText, Jump, JumpIfFalse, LoadConst, Return,
+};
+use crate::visitor::NodeVisitor;
 
 pub fn compile_to_lir<'a>(func: &'a FuncDec<'a>) -> LirFunction {
     let compiler = LirCompiler::new(func);
@@ -35,7 +39,9 @@ pub enum LIR {
     JumpIfFalse(LirReg, Label),
 
     // func
-    Call(LirReg, String, Vec<LirReg>), // dest, func_name, args
+    Call(LirReg, String, Vec<LirReg>),
+    // dest, func_name, args
+    CallText(LirReg, bool, String),
     Return(LirReg),
 }
 
@@ -174,10 +180,27 @@ impl<'a> LirCompiler<'a> {
                 self.instrs.push(LoadConst(dest.clone(), *num));
                 dest
             }
-            ExprKind::StringLiteral(_) => {
-                todo!("Not yet implemented")
-            }
+            ExprKind::StringLiteral(_) => self.new_tmp(),
             ExprKind::FunctionCall(func_data) => {
+                if func_data.function_name.name == "showtext" {
+                    let dest = self.new_tmp();
+                    let StringLiteral(text) = func_data.arguments.get(0).unwrap().kind else {
+                        panic!("This should not happen");
+                    };
+                    self.instrs
+                        .push(CallText(dest.clone(), false, text.to_string()));
+                    return dest;
+                }
+                if func_data.function_name.name == "showtextln" {
+                    let dest = self.new_tmp();
+                    let StringLiteral(text) = func_data.arguments.get(0).unwrap().kind else {
+                        panic!("This should not happen");
+                    };
+                    self.instrs
+                        .push(CallText(dest.clone(), true, text.to_string()));
+                    return dest;
+                }
+
                 let mut arg_dests = Vec::new();
                 for e in &func_data.arguments {
                     let e_dest = self.flat_expr(e);
@@ -233,7 +256,7 @@ impl fmt::Display for Label {
     }
 }
 
-impl fmt::Display for LIR {
+impl<'a> fmt::Display for LIR {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             LIR::BinaryExpr(reg_a, op, reg_b, reg_c) => {
@@ -248,6 +271,9 @@ impl fmt::Display for LIR {
                 write!(f, "Call({}, {}, ", reg, func_name)?;
                 let args_strings: Vec<String> = args.iter().map(ToString::to_string).collect();
                 write!(f, "[{}])", args_strings.join(", "))
+            }
+            LIR::CallText(_, has_newline, text) => {
+                write!(f, "CallText(\"{}\", newline: {})", text, has_newline)
             }
             LIR::Return(reg) => write!(f, "Return({})", reg),
         }
@@ -268,10 +294,11 @@ impl fmt::Display for LirFunction {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::ast::BinaryOp;
     use crate::checker::check_lil;
     use crate::parser::parse_lil_program;
+
+    use super::*;
 
     fn create_prog(str: &str) -> Program {
         let prog = parse_lil_program(str).expect("Couldn't parse program");

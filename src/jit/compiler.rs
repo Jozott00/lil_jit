@@ -1,4 +1,21 @@
+use std::collections::HashMap;
+use std::marker::PhantomData;
+
+use armoured_rust::instruction_encoding::branch_exception_system::compare_and_branch_imm::CompareAndBranchImm;
+use armoured_rust::instruction_encoding::branch_exception_system::unconditional_branch_immediate::{UnconditionalBranchImmediate, UnconditionalBranchImmediateWithAddress};
+use armoured_rust::instruction_encoding::branch_exception_system::unconditional_branch_register::UnconditionalBranchRegister;
+use armoured_rust::instruction_encoding::common_aliases::CommonAliases;
+use armoured_rust::instruction_encoding::data_proc_imm::mov_wide_imm::MovWideImmediate;
+use armoured_rust::instruction_encoding::data_proc_reg::conditional_select::ConditionalSelect;
+use armoured_rust::instruction_encoding::data_proc_reg::data_proc_two_src::DataProcessingTwoSource;
+use armoured_rust::instruction_encoding::loads_and_stores::load_store_reg_pre_post_indexed::LoadStoreRegisterPrePostIndexed;
+use armoured_rust::types::{HW, InstructionPointer};
+use armoured_rust::types::condition::Condition::{EQ, GE, GT, LE, LT, NE};
+use armoured_rust::types::register::WZR;
+use log::warn;
+
 use crate::ast::BinaryOp;
+use crate::built_in::BUILTIN_FUNCS;
 use crate::jit::arch_def::{RegDefinition, Register};
 use crate::jit::codegendata::CodegenData;
 use crate::jit::codeinfo::CodeInfo;
@@ -6,23 +23,12 @@ use crate::jit::funcinfo::FuncInfo;
 use crate::jit::jitdata::JitData;
 use crate::jit::lir::{Label, LirReg, LIR};
 use crate::jit::reg_alloc::reg_off::RegOff;
-use armoured_rust::instruction_encoding::branch_exception_system::unconditional_branch_immediate::{UnconditionalBranchImmediate, UnconditionalBranchImmediateWithAddress};
-use armoured_rust::instruction_encoding::branch_exception_system::unconditional_branch_register::UnconditionalBranchRegister;
-use armoured_rust::instruction_encoding::common_aliases::CommonAliases;
-use armoured_rust::instruction_encoding::data_proc_imm::mov_wide_imm::MovWideImmediate;
 
-use crate::built_in::BUILTIN_FUNCS;
 use crate::jit::stub::compile_stub;
-use armoured_rust::instruction_encoding::branch_exception_system::compare_and_branch_imm::CompareAndBranchImm;
-use armoured_rust::instruction_encoding::loads_and_stores::load_store_reg_pre_post_indexed::LoadStoreRegisterPrePostIndexed;
-use armoured_rust::types::{InstructionPointer, HW};
-use log::warn;
-use std::collections::HashMap;
-use std::marker::PhantomData;
 
 pub fn compile_func<'a, 'b, D: RegDefinition>(
     func_info: FuncInfo<'a>,
-    jit_data: &'b JitData<'a>,
+    jit_data: &'b mut JitData<'a>,
 ) -> CodeInfo<'a> {
     let compiler: Compiler<D> = Compiler::<D>::new(func_info, jit_data);
     compiler.compile()
@@ -32,15 +38,16 @@ pub fn compile_func<'a, 'b, D: RegDefinition>(
 ///
 /// A compiler can be invoked by `compile()` which consumes itself, and therefore isn't usable anymore.
 struct Compiler<'a, 'b, D: RegDefinition> {
-    reg_def: PhantomData<D>, // to be able to use the generic static type RegDefinition
-    jit_data: &'b JitData<'a>,
+    reg_def: PhantomData<D>,
+    // to be able to use the generic static type RegDefinition
+    jit_data: &'b mut JitData<'a>,
     code_info: CodeInfo<'a>,
     label_indices: HashMap<Label, usize>,
     patch_requests: HashMap<Label, Vec<(LIR, InstructionPointer)>>,
 }
 
 impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
-    fn new(func_info: FuncInfo<'a>, jit_data: &'b JitData<'a>) -> Self {
+    fn new(func_info: FuncInfo<'a>, jit_data: &'b mut JitData<'a>) -> Self {
         let code_info = CodeInfo::new(func_info);
 
         Compiler {
@@ -86,28 +93,52 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
                         cd.sub_32_reg(dreg, lhs, rhs);
                     }
                     BinaryOp::Multi => {
-                        todo!()
+                        cd.mul_32_reg(dreg, lhs, rhs);
                     }
                     BinaryOp::Divide => {
-                        todo!()
+                        cd.sdiv_32(dreg, lhs, rhs);
                     }
                     BinaryOp::Equals => {
-                        todo!()
+                        // FIXME: This code could be more readable with cmp and cset.
+                        // This code is functionally equal but less readable, also because csinc
+                        // needs to invert the condition.
+                        cd.subs_32_reg(WZR, lhs, rhs);
+                        cd.csinc_32(dreg, WZR, WZR, NE);
                     }
                     BinaryOp::NotEqual => {
-                        todo!()
+                        // FIXME: This code could be more readable with cmp and cset.
+                        // This code is functionally equal but less readable, also because csinc
+                        // needs to invert the condition.
+                        cd.subs_32_reg(WZR, lhs, rhs);
+                        cd.csinc_32(dreg, WZR, WZR, EQ);
                     }
                     BinaryOp::Greater => {
-                        todo!()
+                        // FIXME: This code could be more readable with cmp and cset.
+                        // This code is functionally equal but less readable, also because csinc
+                        // needs to invert the condition.
+                        cd.subs_32_reg(WZR, lhs, rhs);
+                        cd.csinc_32(dreg, WZR, WZR, LE);
                     }
                     BinaryOp::GreaterEqual => {
-                        todo!()
+                        // FIXME: This code could be more readable with cmp and cset.
+                        // This code is functionally equal but less readable, also because csinc
+                        // needs to invert the condition.
+                        cd.subs_32_reg(WZR, lhs, rhs);
+                        cd.csinc_32(dreg, WZR, WZR, LT);
                     }
                     BinaryOp::Less => {
-                        todo!()
+                        // FIXME: This code could be more readable with cmp and cset.
+                        // This code is functionally equal but less readable, also because csinc
+                        // needs to invert the condition.
+                        cd.subs_32_reg(WZR, lhs, rhs);
+                        cd.csinc_32(dreg, WZR, WZR, GE);
                     }
                     BinaryOp::LessEqual => {
-                        todo!()
+                        // FIXME: This code could be more readable with cmp and cset.
+                        // This code is functionally equal but less readable, also because csinc
+                        // needs to invert the condition.
+                        cd.subs_32_reg(WZR, lhs, rhs);
+                        cd.csinc_32(dreg, WZR, WZR, GT);
                     }
                 }
 
@@ -144,7 +175,7 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
                 self.label_indices.insert(*label, index);
 
                 let Some(requests) = self.patch_requests.remove(label) else {
-                    return
+                    return;
                 };
 
                 // Since we now have the label, let's see if there are some patch requests and if so let's patch them
@@ -170,11 +201,13 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
             }
             LIR::Jump(label) => {
                 let Some(label_index) = self.label_indices.get(label) else {
-
                     let code_ptr = self.code_info.codegen_data.code_ptr();
                     match self.patch_requests.get_mut(label) {
-                        Some(requests) =>  requests.push((instr.clone(), code_ptr)),
-                        None => {self.patch_requests.insert(*label, vec!((instr.clone(), code_ptr)));},
+                        Some(requests) => requests.push((instr.clone(), code_ptr)),
+                        None => {
+                            self.patch_requests
+                                .insert(*label, vec![(instr.clone(), code_ptr)]);
+                        }
                     }
 
                     self.cd().nop();
@@ -188,11 +221,13 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
             }
             LIR::JumpIfFalse(lir_reg, label) => {
                 let Some(label_index) = self.label_indices.get(label) else {
-
                     let code_ptr = self.code_info.codegen_data.code_ptr();
                     match self.patch_requests.get_mut(label) {
-                        Some(requests) =>  requests.push((instr.clone(), code_ptr)),
-                        None => {self.patch_requests.insert(*label, vec!((instr.clone(), code_ptr)));},
+                        Some(requests) => requests.push((instr.clone(), code_ptr)),
+                        None => {
+                            self.patch_requests
+                                .insert(*label, vec![(instr.clone(), code_ptr)]);
+                        }
                     }
 
                     self.cd().nop();
@@ -208,6 +243,7 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
             LIR::Call(dest, func_name, args) => {
                 let dreg = self.get_dst(dest, D::temp1());
 
+                // TODO: Move to the start of the function
                 // store x30 (link) on stack
                 self.cd().str_64_imm_pre_index(30, 31, -16);
 
@@ -233,6 +269,41 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
 
                 self.store_dst(dest, dreg);
 
+                self.cd().ldr_64_imm_post_index(30, 31, 16);
+            }
+            LIR::CallText(dest, has_newline, text) => {
+                let dreg = self.get_dst(dest, D::temp1());
+
+                // TODO: Move to the start of the function
+                // store x30 (link) on stack
+                self.cd().str_64_imm_pre_index(30, 31, -16);
+
+                let func_ptr = BUILTIN_FUNCS
+                    .get(if *has_newline {
+                        "showtextln"
+                    } else {
+                        "showtext"
+                    })
+                    .unwrap()
+                    .mem_ptr;
+
+                self.jit_data.texts.insert(text.to_string());
+                let text_ptr = self.jit_data.texts.get(text).unwrap().as_ptr() as usize;
+
+                let p1_16 = (text_ptr & 0xFFFF) as u16;
+                let p2_16 = ((text_ptr >> 16) & 0xFFFF) as u16;
+                let p3_16 = ((text_ptr >> 32) & 0xFFFF) as u16;
+                let p4_16 = ((text_ptr >> 48) & 0xFFFF) as u16;
+
+                self.cd().movz_64_imm(0, p1_16);
+                self.cd().movk_64_imm_lsl(0, p2_16, HW::LSL16);
+                self.cd().movk_64_imm_lsl(0, p3_16, HW::LSL32);
+                self.cd().movk_64_imm_lsl(0, p4_16, HW::LSL48);
+
+                self.cd().bl_to_addr(func_ptr);
+                self.mov_reg(dreg, D::ret_reg());
+
+                self.store_dst(dest, dreg);
                 self.cd().ldr_64_imm_post_index(30, 31, 16);
             }
             LIR::Return(src) => {
