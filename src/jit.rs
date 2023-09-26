@@ -4,6 +4,8 @@
 // 4. codegendata .. function specific machine code data (such as mcodebase, mcodeptr, etc.)
 
 use crate::ast::Program;
+use armoured_rust::types::InstructionPointer;
+use std::arch::global_asm;
 
 use crate::jit::arch_def::arm64::Arm64;
 use crate::jit::compiler::compile_func;
@@ -21,23 +23,42 @@ mod jitdata;
 mod lir;
 mod reg_alloc;
 mod scope;
+mod stub;
+
+/// Address reference to JIT object. Accessed by stub. (Highly Unsafe)
+///
+/// Only valid as long as JIT is running
+static mut JIT_REF: Option<usize> = None;
+
+/// Starts the JIT compilation and program execution of
+/// the given Program.
+///
+/// Uses unsafe operations to make the created JIT object statically available.
+pub fn run_jit(ast: &Program) {
+    let mut jit = JIT::new(&ast);
+    unsafe {
+        // store reference to jit object statically
+        JIT_REF = Some((&jit) as *const _ as usize);
+    }
+    jit.run();
+}
 
 pub struct JIT<'a> {
     jit_data: JitData<'a>,
 }
 
 impl<'a> JIT<'a> {
-    pub fn new(ast: &'a Program) -> Self {
+    fn new(ast: &'a Program) -> Self {
         let funcs = ast.functions.iter().collect();
         let jit_data = JitData::new(funcs);
         JIT { jit_data }
     }
 
-    pub fn run(&'a mut self) {
+    fn run(&'a mut self) {
         self.compile("main");
     }
 
-    pub fn compile(&'a mut self, funcname: &'a str) {
+    fn compile(&'a mut self, funcname: &'a str) {
         log::info!(target: "verbose", "COMPILING {} ...", funcname);
 
         let uncompiled_func = self
@@ -64,6 +85,10 @@ impl<'a> JIT<'a> {
 
         // add compiled function
         self.jit_data.compiled_funcs.insert(funcname, code_info);
+    }
+
+    fn compile_by_caller_addr(&'a mut self, caller: InstructionPointer) {
+        println!("We are in the JIT compiler now!");
     }
 }
 

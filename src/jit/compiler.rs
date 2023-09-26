@@ -12,6 +12,7 @@ use armoured_rust::instruction_encoding::common_aliases::CommonAliases;
 use armoured_rust::instruction_encoding::data_proc_imm::mov_wide_imm::MovWideImmediate;
 
 use crate::built_in::BUILTIN_FUNCS;
+use crate::jit::stub::compile_stub;
 use armoured_rust::instruction_encoding::branch_exception_system::compare_and_branch_imm::CompareAndBranchImm;
 use armoured_rust::instruction_encoding::loads_and_stores::load_store_reg_pre_post_indexed::LoadStoreRegisterPrePostIndexed;
 use armoured_rust::types::{InstructionPointer, HW};
@@ -216,9 +217,7 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
                 } else {
                     match self.jit_data.compiled_funcs.get(func_name.as_str()) {
                         Some(code_info) => code_info.codegen_data.base_ptr(),
-                        None => {
-                            todo!("Emit a stub and return the address of the stub");
-                        }
+                        None => compile_stub as InstructionPointer,
                     }
                 };
 

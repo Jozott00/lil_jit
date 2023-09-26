@@ -5,7 +5,7 @@ use clap::Parser;
 
 use lil_jit;
 use lil_jit::checker::check_lil;
-use lil_jit::jit::JIT;
+use lil_jit::jit::{run_jit, JIT};
 use lil_jit::logger::{LilLogger, LILLOGGER};
 use lil_jit::parser::parse_lil_program;
 use log::LevelFilter;
@@ -63,6 +63,5 @@ fn main() {
         exit(1)
     });
 
-    let mut jit = JIT::new(&ast);
-    jit.run();
+    run_jit(&ast);
 }

@@ -1,3 +1,7 @@
+fn test() {
+
+}
+
 fn main() {
-    return cool()
+    return test()
  }
