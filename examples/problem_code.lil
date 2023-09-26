@@ -8,5 +8,6 @@ fn test(i) {
 }
 
 fn main() {
-    return test(1)
+    test(2)
+    return test(0)
  }

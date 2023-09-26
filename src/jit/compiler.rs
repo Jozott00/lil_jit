@@ -1,3 +1,4 @@
+use armoured_rust::assert_panic;
 use armoured_rust::instruction_encoding::AddressableInstructionProcessor;
 use std::collections::HashMap;
 use std::marker::PhantomData;
@@ -89,9 +90,7 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
         // save x30 (link) on stack
         self.cd().str_64_imm_pre_index(30, 31, -16);
 
-        // TODO: move arguments to allocated registers
         // TODO: also handle arguments in stub!
-        // TODO: also alloc register before actual instructions in reg alloc!
         // Be careful: if allocated registers are caller saved, this might result in collisions -> argument variables must not get caller saved registers
     }
 
@@ -169,6 +168,16 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
                 }
 
                 // if dest is offset, store dreg on stack at offset
+                self.store_dst(dest, dreg);
+            }
+            LIR::InputArgLoad(dest, i) => {
+                let dreg = self.get_dst(dest, D::temp1());
+                // TODO: Check if register to load is spilled and handle it!
+                assert!(
+                    D::caller_saved().len() > *i,
+                    "argument would be spilled! spilling isnt implemented yet!"
+                );
+                self.cd().mov_64_reg(dreg, *i as Register);
                 self.store_dst(dest, dreg);
             }
             LIR::Assign(dest, src) => {

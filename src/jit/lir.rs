@@ -6,7 +6,7 @@ use crate::ast::ExprKind::StringLiteral;
 use crate::ast::{Expr, ExprKind, FuncDec, Program, Stmt, StmtKind};
 use crate::jit::lir::LirReg::{Tmp, Var};
 use crate::jit::lir::LIR::{
-    Assign, BinaryExpr, Call, CallText, Jump, JumpIfFalse, LoadConst, Return,
+    Assign, BinaryExpr, Call, CallText, InputArgLoad, Jump, JumpIfFalse, LoadConst, Return,
 };
 use crate::visitor::NodeVisitor;
 
@@ -30,6 +30,7 @@ pub enum LIR {
     BinaryExpr(LirReg, ast::BinaryOp, LirReg, LirReg),
 
     // mem movement
+    InputArgLoad(LirReg, usize), // (destination, argument index)
     Assign(LirReg, LirReg),
     LoadConst(LirReg, i32),
 
@@ -79,6 +80,10 @@ impl<'a> LirCompiler<'a> {
 
 impl<'a> LirCompiler<'a> {
     fn flat_funcdec(&mut self, func_dec: &'a FuncDec<'a>) {
+        for (i, arg) in func_dec.params.iter().enumerate() {
+            self.instrs.push(InputArgLoad(Var(arg.name.to_string()), i))
+        }
+
         self.flat_stmt(&func_dec.body);
 
         // if last is stmt kind, return
@@ -262,6 +267,7 @@ impl<'a> fmt::Display for LIR {
             LIR::BinaryExpr(reg_a, op, reg_b, reg_c) => {
                 write!(f, "BinaryExpr({}, {}, {}, {})", reg_a, op, reg_b, reg_c)
             }
+            InputArgLoad(dst, i) => write!(f, "InputArgLoad({}, {})", dst, i),
             LIR::Assign(reg_a, reg_b) => write!(f, "Assign({}, {})", reg_a, reg_b),
             LIR::LoadConst(reg, const_val) => write!(f, "LoadConst({}, {})", reg, const_val),
             LIR::Label(label) => write!(f, "Label({})", label),

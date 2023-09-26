@@ -42,6 +42,9 @@ pub fn compute_live_intervals(func: &LirFunction) -> LiveIntervals {
                 update_var(lhs, i, &mut intervals);
                 update_var(rhs, i, &mut intervals);
             }
+            LIR::InputArgLoad(dest, _) => {
+                update_var(dest, i, &mut intervals);
+            }
             LIR::Assign(dest, src) => {
                 update_var(dest, i, &mut intervals);
                 update_var(src, i, &mut intervals);
