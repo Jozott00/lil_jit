@@ -71,15 +71,20 @@ const MEMORY_ALLOCATION_MULTIPLIER: usize = 2;
 /// Maximum offset of instruction pointer relative jumps
 const MAX_OFFSET: usize = i32::MAX as usize;
 
+pub type InstrCount = usize;
+
 /// The `CodegenData` struct holds the necessary data for code generation, including pointers to the machine code base and current position,
 /// as well as the length of the allocated memory block.
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq, Hash)]
 pub struct CodegenData {
     mcbase: InstructionPointer,
     // The base address of the machine code memory block.
     len: usize,
     // The length of the allocated memory block.
     mcodeptr: InstructionPointer, // The current position in the machine code memory block.
+
+    // if memory is currently executable
+    executable: bool,
 }
 
 /// Implementation of the `Drop` trait for `CodegenData`.
@@ -101,6 +106,7 @@ impl CodegenData {
             mcbase: addr as InstructionPointer,
             len: page_size,
             mcodeptr: addr as InstructionPointer,
+            executable: false,
         })
     }
 
@@ -119,11 +125,24 @@ impl CodegenData {
         return self.mcbase;
     }
 
+    pub fn instr_count(&self) -> InstrCount {
+        ((self.mcodeptr as usize) - self.mcbase as usize) / 4
+    }
+
+    pub fn code_ptr_from_instr_count(&self, instr_count: InstrCount) -> InstructionPointer {
+        (self.mcbase as usize + instr_count * 4) as InstructionPointer
+    }
+
     pub fn patch_at<F>(&mut self, dst: InstructionPointer, function: F)
     where
         F: FnOnce(&mut Self) -> (),
     {
         // FIXME: REquire that instruction is in the correct range
+
+        let was_executable = self.executable;
+        if self.executable {
+            self.make_writable()
+        }
 
         let old_mcodeptr = self.mcodeptr;
         self.mcodeptr = dst;
@@ -131,6 +150,10 @@ impl CodegenData {
         function(self);
 
         self.mcodeptr = old_mcodeptr;
+
+        if was_executable {
+            self.make_executable()
+        }
     }
 }
 
@@ -192,10 +215,27 @@ impl CodegenData {
                 panic!("Failed to set memory as executable");
             }
         }
+
+        self.executable = true;
+    }
+
+    fn make_writable(&mut self) {
+        unsafe {
+            if libc::mprotect(
+                self.mcbase as *mut c_void,
+                self.len,
+                libc::PROT_READ | libc::PROT_WRITE,
+            ) != 0
+            {
+                panic!("Failed to set memory as writable");
+            }
+        }
+
+        self.executable = false;
     }
 
     #[inline(always)]
-    pub fn nullary_fn_ptr(&mut self) -> unsafe extern "C" fn() -> i32 {
+    pub fn nullary_fn_ptr(&self) -> unsafe extern "C" fn() -> i32 {
         unsafe { mem::transmute(self.mcbase as usize) }
     }
 

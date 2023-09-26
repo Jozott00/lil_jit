@@ -177,6 +177,11 @@ fn parse_for(input: Span) -> IResult<Span, Stmt> {
     Ok((input, stmt))
 }
 
+// FIXME: Failed:
+// fn second() {
+//     if 1: return
+//     test(2)
+// }
 fn parse_return(input: Span) -> IResult<Span, Stmt> {
     let (input, (first, _, expr)) = tuple((tag("return"), multispace0, parse_expr))(input)?;
     let location = Location::from_span(&first).merge(&expr.location());

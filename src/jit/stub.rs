@@ -2,7 +2,7 @@ use crate::jit::{JIT, JIT_REF};
 use armoured_rust::types::InstructionPointer;
 use std::arch::global_asm;
 
-// TODO: save and restore caller saved registers
+// TODO: save and restore caller saved registers (arguments)
 global_asm!(
     "
     .global _compile_stub

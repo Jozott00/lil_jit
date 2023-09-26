@@ -4,10 +4,11 @@ fn fib(n) {
     return fib(n - 1) + fib(n - 2)
 }
 
-fn print(n) {
-    let x = n
+fn test(n) {
+    if n < 0: return 0
+    return 1 + test(n-1)
 }
 
 fn main() {
-    for let i = 0; i < 100; i = i+1: print(fib(i))
+    showln(test(5))
 }

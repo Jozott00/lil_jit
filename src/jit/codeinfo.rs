@@ -1,5 +1,6 @@
 use crate::jit::codegendata::CodegenData;
 use crate::jit::funcinfo::FuncInfo;
+use std::collections::HashMap;
 
 /// Holds the information of a compiled function (or one that is currently in compilation process)
 ///

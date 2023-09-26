@@ -21,6 +21,10 @@ pub struct LilLogger {
 
 impl log::Log for LilLogger {
     fn enabled(&self, metadata: &Metadata) -> bool {
+        if metadata.level() != Level::Info {
+            return true;
+        }
+
         match metadata.target() {
             "verbose" => self.verbose.fetch_and(true, Ordering::Relaxed),
             "dump-ast" => self.dump_ast.fetch_and(true, Ordering::Relaxed),

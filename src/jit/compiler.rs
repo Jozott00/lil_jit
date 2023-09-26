@@ -1,3 +1,4 @@
+use armoured_rust::instruction_encoding::AddressableInstructionProcessor;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 
@@ -17,7 +18,7 @@ use log::warn;
 use crate::ast::BinaryOp;
 use crate::built_in::BUILTIN_FUNCS;
 use crate::jit::arch_def::{RegDefinition, Register};
-use crate::jit::codegendata::CodegenData;
+use crate::jit::codegendata::{CodegenData, InstrCount};
 use crate::jit::codeinfo::CodeInfo;
 use crate::jit::funcinfo::FuncInfo;
 use crate::jit::jitdata::JitData;
@@ -44,6 +45,7 @@ struct Compiler<'a, 'b, D: RegDefinition> {
     code_info: CodeInfo<'a>,
     label_indices: HashMap<Label, usize>,
     patch_requests: HashMap<Label, Vec<(LIR, InstructionPointer)>>,
+    stub_refs: HashMap<&'a str, InstrCount>,
 }
 
 impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
@@ -56,11 +58,11 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
             code_info,
             label_indices: Default::default(),
             patch_requests: Default::default(),
+            stub_refs: Default::default(),
         }
     }
     fn compile(mut self) -> CodeInfo<'a> {
-        // TODO: move arguments to allocated registers
-        // Be careful: if allocated registers are caller saved, this might result in collisions -> argument variables must not get caller saved registers
+        self.compile_prolog();
 
         let instrs = &self.code_info.func_info.lir().instrs().to_vec();
 
@@ -72,7 +74,31 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
             panic!("Some branches could not be patched!")
         }
 
+        // store stub references
+        for (func, cnt) in &self.stub_refs {
+            let iptr = self.code_info.codegen_data.code_ptr_from_instr_count(*cnt);
+            self.jit_data
+                .stub_ref_store
+                .add_unresolved(func, self.code_info.func_info.name(), iptr)
+        }
+
         self.code_info
+    }
+
+    fn compile_prolog(&mut self) {
+        // save x30 (link) on stack
+        self.cd().str_64_imm_pre_index(30, 31, -16);
+
+        // TODO: move arguments to allocated registers
+        // TODO: also handle arguments in stub!
+        // TODO: also alloc register before actual instructions in reg alloc!
+        // Be careful: if allocated registers are caller saved, this might result in collisions -> argument variables must not get caller saved registers
+    }
+
+    fn compile_epilog(&mut self) {
+        // restore x30 (link) from stack
+        self.cd().ldr_64_imm_post_index(30, 31, 16);
+        self.cd().ret()
     }
 
     fn compile_instr(&mut self, instr: &LIR) {
@@ -243,17 +269,22 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
             LIR::Call(dest, func_name, args) => {
                 let dreg = self.get_dst(dest, D::temp1());
 
-                // TODO: Move to the start of the function
-                // store x30 (link) on stack
-                self.cd().str_64_imm_pre_index(30, 31, -16);
+                let mut is_stub_call = false;
 
-                // check if func is builtin or custom
+                // check if func is builtin or recursive or custom or not yet compiled
                 let func_ptr = if let Some(built_in) = BUILTIN_FUNCS.get(func_name.as_str()) {
                     built_in.mem_ptr as InstructionPointer
                 } else {
-                    match self.jit_data.compiled_funcs.get(func_name.as_str()) {
-                        Some(code_info) => code_info.codegen_data.base_ptr(),
-                        None => compile_stub as InstructionPointer,
+                    if func_name == self.code_info.func_info.name() {
+                        self.cd().base_ptr()
+                    } else {
+                        match self.jit_data.compiled_funcs.get(func_name.as_str()) {
+                            Some(code_info) => code_info.codegen_data.base_ptr(),
+                            None => {
+                                is_stub_call = true;
+                                compile_stub as InstructionPointer
+                            }
+                        }
                     }
                 };
 
@@ -264,19 +295,30 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
                     // TODO: handle spilled arguments
                 }
 
+                // if we call a stub, add add function name together with instructionCounter to
+                // local stub_refs map. After the function compilation this is stored in the
+                // jit_data.stub_ref_store. The late storage is required, as the method may extend
+                // while compilation!
+                if is_stub_call {
+                    let code_ptr = self.cd().code_ptr();
+                    let instr_count = self.cd().instr_count();
+                    let func_name = self
+                        .jit_data
+                        .uncompiled_funcs
+                        .get(func_name.as_str())
+                        .expect("As function not yet compiled it must be uncompiled_function map!")
+                        .name
+                        .name;
+                    self.stub_refs.insert(func_name, instr_count);
+                }
+
                 self.cd().bl_to_addr(func_ptr as usize);
                 self.mov_reg(dreg, D::ret_reg());
 
                 self.store_dst(dest, dreg);
-
-                self.cd().ldr_64_imm_post_index(30, 31, 16);
             }
             LIR::CallText(dest, has_newline, text) => {
                 let dreg = self.get_dst(dest, D::temp1());
-
-                // TODO: Move to the start of the function
-                // store x30 (link) on stack
-                self.cd().str_64_imm_pre_index(30, 31, -16);
 
                 let func_ptr = BUILTIN_FUNCS
                     .get(if *has_newline {
@@ -304,14 +346,13 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
                 self.mov_reg(dreg, D::ret_reg());
 
                 self.store_dst(dest, dreg);
-                self.cd().ldr_64_imm_post_index(30, 31, 16);
             }
             LIR::Return(src) => {
                 let src = self.load_reg(src, D::temp1());
                 let cd = self.cd();
 
                 cd.mov_64_reg(0, src);
-                cd.ret()
+                self.compile_epilog()
             }
         }
     }

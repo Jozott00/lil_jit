@@ -4,7 +4,9 @@
 // 4. codegendata .. function specific machine code data (such as mcodebase, mcodeptr, etc.)
 
 use crate::ast::Program;
+use armoured_rust::instruction_encoding::branch_exception_system::unconditional_branch_immediate::UnconditionalBranchImmediateWithAddress;
 use armoured_rust::types::InstructionPointer;
+use log::{debug, info};
 use std::arch::global_asm;
 
 use crate::jit::arch_def::arm64::Arm64;
@@ -24,6 +26,7 @@ mod lir;
 mod reg_alloc;
 mod scope;
 mod stub;
+mod stub_ref_store;
 
 /// Address reference to JIT object. Accessed by stub. (Highly Unsafe)
 ///
@@ -54,12 +57,28 @@ impl<'a> JIT<'a> {
         JIT { jit_data }
     }
 
-    fn run(&'a mut self) {
+    fn run(&mut self) {
         self.compile("main");
+
+        let main_info = self
+            .jit_data
+            .compiled_funcs
+            .get("main")
+            .expect("main function not compiled!");
+
+        let main = main_info.codegen_data.nullary_fn_ptr();
+        let exit_code = unsafe { main() };
+
+        println!("EXIT CODE: {exit_code}")
     }
 
-    fn compile(&'a mut self, funcname: &'a str) {
+    fn compile(&mut self, funcname: &'a str) {
         log::info!(target: "verbose", "COMPILING {} ...", funcname);
+
+        if self.jit_data.compiled_funcs.contains_key(funcname) {
+            debug!("Function {funcname} was already compiled...");
+            return;
+        }
 
         let uncompiled_func = self
             .jit_data
@@ -75,21 +94,48 @@ impl<'a> JIT<'a> {
 
         let func_info = FuncInfo::new(funcname, lir, reg_mapping);
         let mut code_info = compile_func::<Arm64>(func_info, &mut self.jit_data);
-        log::info!(target: "dump-disasm", "-----\nDISASSEMBLY FOR {}:\n{}\n-------\n", funcname, code_info.codegen_data);
+        log::info!(target: "dump-disasm", "-----\nDISASSEMBLY FOR {}:\n{}-------\n", funcname, code_info.codegen_data);
 
         code_info.codegen_data.make_executable();
-        let func = code_info.codegen_data.nullary_fn_ptr();
-        let result = unsafe { func() };
-
-        // TODO: REMOVE -- just a demo
-        println!("Received result: {}", result);
 
         // add compiled function
         self.jit_data.compiled_funcs.insert(funcname, code_info);
     }
 
+    /// TODO: Refactor into own module
     fn compile_by_caller_addr(&'a mut self, caller: InstructionPointer) {
-        println!("We are in the JIT compiler now!");
+        let func_name = *self
+            .jit_data
+            .stub_ref_store
+            .get_function_name(caller)
+            .expect("Function Name not found for given reference!");
+
+        let refs = self
+            .jit_data
+            .stub_ref_store
+            .resolve_function(&func_name)
+            .expect("Couldn't find any references to unresolved function name");
+
+        self.compile(&func_name);
+
+        let code_info = self
+            .jit_data
+            .compiled_funcs
+            .get(func_name)
+            .expect("Must exist as we just compiled it");
+        let func_ptr = code_info.codegen_data.base_ptr();
+
+        // patch all references
+        for (caller_func, code_ref) in refs {
+            let caller_info =
+                self.jit_data.compiled_funcs.get_mut(caller_func).expect(
+                    "Caller function must be compiled already, otherwise it could call stub!",
+                );
+
+            caller_info.codegen_data.patch_at(code_ref, |cd| {
+                cd.bl_to_addr(func_ptr as usize);
+            });
+        }
     }
 }
 

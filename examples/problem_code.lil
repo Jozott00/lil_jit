@@ -1,0 +1,12 @@
+
+fn test(i) {
+    if i < 1 {
+        return 1
+    }
+
+    return 2
+}
+
+fn main() {
+    return test(1)
+ }
