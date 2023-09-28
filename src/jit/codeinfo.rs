@@ -1,3 +1,4 @@
+use crate::jit::arch_def::RegDefinition;
 use crate::jit::codegendata::CodegenData;
 use crate::jit::funcinfo::FuncInfo;
 use std::collections::HashMap;
@@ -7,13 +8,13 @@ use std::collections::HashMap;
 /// - `FuncInfo` holds high-level information about the function that is compiled.
 /// - `CodegenData` holds the function memory, function memory pointer, etc.
 #[derive(Debug)]
-pub struct CodeInfo<'a> {
-    pub func_info: FuncInfo<'a>,
+pub struct CodeInfo<'a, D: RegDefinition> {
+    pub func_info: FuncInfo<'a, D>,
     pub codegen_data: CodegenData,
 }
 
-impl<'a> CodeInfo<'a> {
-    pub fn new(func_info: FuncInfo<'a>) -> Self {
+impl<'a, D: RegDefinition> CodeInfo<'a, D> {
+    pub fn new(func_info: FuncInfo<'a, D>) -> Self {
         let codegen_data = CodegenData::new().expect("Failed to create codegen data");
 
         Self {

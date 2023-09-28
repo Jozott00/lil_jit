@@ -1,8 +1,10 @@
+use std::fmt::Debug;
+
 pub mod arm64;
 
 pub type Register = armoured_rust::types::Register;
 
-pub trait RegDefinition {
+pub trait RegDefinition: Debug {
     fn callee_saved() -> &'static [Register];
     fn caller_saved() -> &'static [Register];
 

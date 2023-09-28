@@ -8,8 +8,10 @@ use armoured_rust::instruction_encoding::branch_exception_system::unconditional_
 use armoured_rust::types::InstructionPointer;
 use log::{debug, info};
 use std::arch::global_asm;
+use std::fmt::format;
 
 use crate::jit::arch_def::arm64::Arm64;
+use crate::jit::arch_def::RegDefinition;
 use crate::jit::compiler::compile_func;
 use crate::jit::funcinfo::FuncInfo;
 use crate::jit::jitdata::JitData;
@@ -38,7 +40,7 @@ static mut JIT_REF: Option<usize> = None;
 ///
 /// Uses unsafe operations to make the created JIT object statically available.
 pub fn run_jit(ast: &Program) {
-    let mut jit = JIT::new(&ast);
+    let mut jit = JIT::<Arm64>::new(&ast);
     unsafe {
         // store reference to jit object statically
         JIT_REF = Some((&jit) as *const _ as usize);
@@ -46,11 +48,11 @@ pub fn run_jit(ast: &Program) {
     jit.run();
 }
 
-pub struct JIT<'a> {
-    jit_data: JitData<'a>,
+pub struct JIT<'a, D: RegDefinition> {
+    jit_data: JitData<'a, D>,
 }
 
-impl<'a> JIT<'a> {
+impl<'a, D: RegDefinition> JIT<'a, D> {
     fn new(ast: &'a Program) -> Self {
         let funcs = ast.functions.iter().collect();
         let jit_data = JitData::new(funcs);
@@ -89,11 +91,11 @@ impl<'a> JIT<'a> {
         let lir = compile_to_lir(uncompiled_func);
         log::info!(target: "dump-ir", "------\nLIR DUMP FOR {}:\n{}\n------\n", funcname, lir);
 
-        let reg_mapping = alloc_reg::<Arm64>(&lir);
+        let reg_mapping = alloc_reg::<D>(&lir);
         log::info!(target: "dump-reg-alloc", "------\nREGISTER ALLOCATION DUMP FOR {}:\n{:?}\n------\n", funcname, reg_mapping);
 
         let func_info = FuncInfo::new(funcname, lir, reg_mapping);
-        let mut code_info = compile_func::<Arm64>(func_info, &mut self.jit_data);
+        let mut code_info = compile_func::<D>(func_info, &mut self.jit_data);
         log::info!(target: "dump-disasm", "-----\nDISASSEMBLY FOR {}:\n{}-------\n", funcname, code_info.codegen_data);
 
         code_info.codegen_data.make_executable();
@@ -108,7 +110,13 @@ impl<'a> JIT<'a> {
             .jit_data
             .stub_ref_store
             .get_function_name(caller)
-            .expect("Function Name not found for given reference!");
+            .expect(
+                format!(
+                    "Function Name not found for given reference {:#x}!",
+                    caller as usize
+                )
+                .as_str(),
+            );
 
         let refs = self
             .jit_data
@@ -137,8 +145,6 @@ impl<'a> JIT<'a> {
                     cd.bl_to_addr(func_ptr as usize);
                 });
             }
-
-            info!(target: "dump-disasm", "-----\nDISASSEMBLY AFTER PATCH FOR {}:\n{}-------\n", caller_func, caller_info.codegen_data);
         }
     }
 }

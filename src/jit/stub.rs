@@ -1,3 +1,4 @@
+use crate::jit::arch_def::arm64::Arm64;
 use crate::jit::{JIT, JIT_REF};
 use armoured_rust::types::InstructionPointer;
 use std::arch::global_asm;
@@ -69,6 +70,6 @@ unsafe extern "C" fn stub_call(caller: u64) {
         panic!("NO JIT_REF SET! Cannot compile uncompiled method as no JIT reference is available")
     };
 
-    let jit = &mut *(jit_ref as *mut JIT);
+    let jit = &mut *(jit_ref as *mut JIT<Arm64>);
     jit.compile_by_caller_addr(caller as InstructionPointer);
 }

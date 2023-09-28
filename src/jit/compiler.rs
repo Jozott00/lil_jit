@@ -7,6 +7,7 @@ use armoured_rust::instruction_encoding::branch_exception_system::compare_and_br
 use armoured_rust::instruction_encoding::branch_exception_system::unconditional_branch_immediate::{UnconditionalBranchImmediate, UnconditionalBranchImmediateWithAddress};
 use armoured_rust::instruction_encoding::branch_exception_system::unconditional_branch_register::UnconditionalBranchRegister;
 use armoured_rust::instruction_encoding::common_aliases::CommonAliases;
+use armoured_rust::instruction_encoding::data_proc_imm::add_substract_imm::AddSubtractImmediate;
 use armoured_rust::instruction_encoding::data_proc_imm::mov_wide_imm::MovWideImmediate;
 use armoured_rust::instruction_encoding::data_proc_reg::conditional_select::ConditionalSelect;
 use armoured_rust::instruction_encoding::data_proc_reg::data_proc_two_src::DataProcessingTwoSource;
@@ -14,7 +15,7 @@ use armoured_rust::instruction_encoding::loads_and_stores::load_store_reg_pair_p
 use armoured_rust::instruction_encoding::loads_and_stores::load_store_reg_pre_post_indexed::LoadStoreRegisterPrePostIndexed;
 use armoured_rust::types::{HW, InstructionPointer};
 use armoured_rust::types::condition::Condition::{EQ, GE, GT, LE, LT, NE};
-use armoured_rust::types::register::WZR;
+use armoured_rust::types::register::{WZR, XZR};
 use log::warn;
 
 use crate::ast::BinaryOp;
@@ -30,9 +31,9 @@ use crate::jit::reg_alloc::reg_off::RegOff;
 use crate::jit::stub::compile_stub;
 
 pub fn compile_func<'a, 'b, D: RegDefinition>(
-    func_info: FuncInfo<'a>,
-    jit_data: &'b mut JitData<'a>,
-) -> CodeInfo<'a> {
+    func_info: FuncInfo<'a, D>,
+    jit_data: &'b mut JitData<'a, D>,
+) -> CodeInfo<'a, D> {
     let compiler: Compiler<D> = Compiler::<D>::new(func_info, jit_data);
     compiler.compile()
 }
@@ -43,15 +44,15 @@ pub fn compile_func<'a, 'b, D: RegDefinition>(
 struct Compiler<'a, 'b, D: RegDefinition> {
     reg_def: PhantomData<D>,
     // to be able to use the generic static type RegDefinition
-    jit_data: &'b mut JitData<'a>,
-    code_info: CodeInfo<'a>,
+    jit_data: &'b mut JitData<'a, D>,
+    code_info: CodeInfo<'a, D>,
     label_indices: HashMap<Label, usize>,
     patch_requests: HashMap<Label, Vec<(LIR, InstructionPointer)>>,
     stub_refs: HashMap<&'a str, Vec<InstrCount>>,
 }
 
 impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
-    fn new(func_info: FuncInfo<'a>, jit_data: &'b mut JitData<'a>) -> Self {
+    fn new(func_info: FuncInfo<'a, D>, jit_data: &'b mut JitData<'a, D>) -> Self {
         let code_info = CodeInfo::new(func_info);
 
         Compiler {
@@ -63,7 +64,7 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
             stub_refs: Default::default(),
         }
     }
-    fn compile(mut self) -> CodeInfo<'a> {
+    fn compile(mut self) -> CodeInfo<'a, D> {
         self.compile_prolog();
 
         let instrs = &self.code_info.func_info.lir().instrs().to_vec();
@@ -96,10 +97,45 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
         // save x30 (link) on stack
         self.cd().str_64_imm_pre_index(30, 31, -16);
 
+        // save callee saved registers
         // TODO: Be careful: if allocated registers are caller saved, this might result in collisions -> argument variables must not get caller saved registers
+        // for r in &self.code_info.func_info.reg_alloc().callee_saved() {
+        //     // FIXME: The 16 byte offset is for allignment but packing them together
+        //     // and fixing the allignment later would be leaner.
+        //     self.cd().str_64_imm_pre_index(*r, 31, -16);
+        // }
+        //
+        // // save framepointer on the stack
+        // self.cd().str_64_imm_pre_index(29, 31, -16);
+        //
+        // // Set the framepointer on to the current stack pointer
+        // self.cd().add_64_imm(29, 31, 0);
     }
 
+    // x30 // link
+    // callee saved registers
+    // old_fp <- fp
+    // stack variables
+
     fn compile_epilog(&mut self) {
+        // sp <- fp
+        // self.cd().add_64_imm(31, 29, 0);
+        //
+        // // fp <- pop old_fp
+        // self.cd().ldr_64_imm_post_index(29, 31, 16);
+        //
+        // // restore callee saved registers
+        // for r in self
+        //     .code_info
+        //     .func_info
+        //     .reg_alloc()
+        //     .callee_saved()
+        //     .iter()
+        //     .rev()
+        // {
+        //     self.cd().ldr_64_imm_post_index(*r, 31, 16);
+        // }
+
         // restore x30 (link) from stack
         self.cd().ldr_64_imm_post_index(30, 31, 16);
         self.cd().ret()
@@ -420,7 +456,7 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
             .code_info
             .func_info
             .reg_alloc()
-            .get(reg)
+            .regoff_for(reg)
             .expect(&*format!(
                 "MAJOR PROBLEM! No register or offset for lir {}",
                 reg

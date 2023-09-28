@@ -1,5 +1,6 @@
 use crate::jit::arch_def::{RegDefinition, Register};
 
+#[derive(Debug)]
 pub struct Arm64;
 
 impl RegDefinition for Arm64 {

@@ -4,11 +4,6 @@ fn fib(n) {
     return fib(n - 1) + fib(n - 2)
 }
 
-fn test(n) {
-    if n < 0: return 0
-    return 1 + test(n-1)
-}
-
 fn main() {
-    showln(test(5))
+    showln(fib(19))
 }

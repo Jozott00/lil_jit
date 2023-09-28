@@ -10,16 +10,53 @@ use crate::jit::reg_alloc::reg_off::RegOff;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 
-pub fn alloc_reg<D: RegDefinition>(func: &LirFunction) -> HashMap<LirReg, RegOff> {
+pub fn alloc_reg<D: RegDefinition>(func: &LirFunction) -> RegMapping<D> {
     let live_intervals = compute_live_intervals(func);
     let reg_alloc = RegAllocator::<D>::new();
     reg_alloc.linear_scan(live_intervals)
 }
 
+#[derive(Debug)]
+pub struct RegMapping<D: RegDefinition> {
+    reg_def: PhantomData<D>,
+    reg_map: HashMap<LirReg, RegOff>,
+    used_callee_saved: Vec<Register>,
+}
+
+impl<'a, D: RegDefinition> RegMapping<D> {
+    fn new() -> Self {
+        Self {
+            reg_def: Default::default(),
+            reg_map: Default::default(),
+            used_callee_saved: Default::default(),
+        }
+    }
+
+    pub fn regoff_for(&self, r: &LirReg) -> Option<&RegOff> {
+        self.reg_map.get(r)
+    }
+
+    fn insert(&mut self, k: LirReg, v: RegOff) {
+        self.reg_map.insert(k, v);
+
+        let RegOff::Reg(r)  = v else {
+            return;
+        };
+
+        if !self.used_callee_saved.contains(&r) && D::callee_saved().contains(&r) {
+            self.used_callee_saved.push(r);
+        }
+    }
+
+    pub fn callee_saved(&self) -> Vec<Register> {
+        return self.used_callee_saved.clone();
+    }
+}
+
 struct RegAllocator<D: RegDefinition> {
     reg_def: PhantomData<D>, // to be able to use the generic static type RegDefinition
     active: Vec<(Register, LiveInterval)>,
-    finalized: HashMap<LirReg, RegOff>,
+    finalized: RegMapping<D>,
     pool: Vec<Register>,
     spill_offset: usize,
 }
@@ -31,13 +68,13 @@ impl<D: RegDefinition> RegAllocator<D> {
         Self {
             reg_def: Default::default(),
             active: Vec::new(),
-            finalized: HashMap::new(),
+            finalized: RegMapping::new(),
             pool,
             spill_offset: 0,
         }
     }
 
-    fn linear_scan(mut self, mut live_intervals: LiveIntervals) -> HashMap<LirReg, RegOff> {
+    fn linear_scan(mut self, mut live_intervals: LiveIntervals) -> RegMapping<D> {
         // sort intervals by start point
         live_intervals.sort_by(|a, b| a.start.cmp(&b.start));
 
@@ -117,6 +154,7 @@ mod tests {
     use crate::checker::check_lil;
     use crate::jit::lir::{compile_to_lir, LirReg};
     use crate::parser::parse_lil_program;
+    use std::fmt::{Debug, Formatter};
 
     fn create_prog(str: &str) -> LirFunction {
         let prog = parse_lil_program(str).expect("Couldn't parse program");
@@ -147,7 +185,7 @@ mod tests {
         let allocs = alloc_reg::<TestArch>(&lir);
 
         println!("REGISTER ALLOC DUMP:");
-        for (var, reg_off) in allocs {
+        for (var, reg_off) in allocs.reg_map {
             println!("{}: {:?}", var, reg_off);
         }
         println!("------------------\n");
@@ -196,13 +234,15 @@ mod tests {
         let reg_alloc = RegAllocator::<TestArch>::new();
         let allocs = reg_alloc.linear_scan(live_intervals);
         println!("REGISTER ALLOC DUMP:");
-        for (var, reg_off) in allocs {
+        for (var, reg_off) in allocs.reg_map {
             println!("{}: {:?}", var, reg_off);
         }
         println!("------------------\n");
     }
 
+    #[derive(Debug)]
     pub struct TestArch;
+
     impl RegDefinition for TestArch {
         fn callee_saved() -> &'static [Register] {
             const CALLEE_REGS: [Register; 3] = [3, 2, 1];

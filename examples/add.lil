@@ -1,3 +1,7 @@
+fn add() {
+    return 1 + 2
+}
+
 fn main() {
-    let a = 2 + 3
+    return add()
 }
