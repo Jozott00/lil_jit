@@ -9,4 +9,4 @@ WORKDIR /workspace
 #COPY Cargo.toml Cargo.lock
 # RUN cargo fetch
 
-COPY . .
+COPY ../ .
