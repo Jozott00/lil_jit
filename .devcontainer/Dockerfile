@@ -6,7 +6,7 @@ RUN apt-get update &&  \
 
 WORKDIR /workspace
 
-COPY Cargo.toml Cargo.lock
+#COPY Cargo.toml Cargo.lock
 # RUN cargo fetch
 
 COPY . .
