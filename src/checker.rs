@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 
+use crate::ast::Program;
 use crate::ast::{AstNode, Stmt, StmtKind};
 use crate::ast::{Expr, ExprKind, FuncDec};
-use crate::ast::Program;
 use crate::built_in::BUILTIN_FUNCS;
 use crate::error::LilError;
 use crate::visitor;
-use crate::visitor::{NodeVisitor, walk_expr, walk_funcdec, walk_stmt, walk_stmt_list};
+use crate::visitor::{walk_expr, walk_funcdec, walk_stmt, walk_stmt_list, NodeVisitor};
 
 pub fn check_lil(program: &Program) -> Result<(), Vec<LilError>> {
     let mut checker = Checker::new(program);
@@ -112,7 +112,22 @@ impl<'a> Checker<'a> {
 
 impl<'a> NodeVisitor<'a> for Checker<'a> {
     fn visit_prog(&mut self, node: &'a Program) {
-        // Visit all functions
+        // Before we visit the functions we need to insert them into the scope
+        for func in &node.functions {
+            if self.scope.has_function(func.name.name) {
+                self.errors.push(LilError {
+                    header: "Function Name Clash".to_string(),
+                    location: Some(func.name.location),
+                    message: "A function with that name was already defined".to_string(),
+                });
+                continue;
+            }
+
+            self.scope
+                .functions
+                .insert(func.name.name, func.params.len() as u8);
+        }
+
         visitor::walk_prog(self, node);
 
         if !self.scope.has_function("main") {
@@ -125,18 +140,6 @@ impl<'a> NodeVisitor<'a> for Checker<'a> {
     }
 
     fn visit_funcdec(&mut self, node: &'a FuncDec) {
-        if self.scope.has_function(node.name.name) {
-            self.errors.push(LilError {
-                header: "Function Name Clash".to_string(),
-                location: Some(node.name.location),
-                message: "A function with that name was already defined".to_string(),
-            });
-
-            // Even though this is an error we want to check the body of the function.
-            walk_funcdec(self, node);
-            return;
-        }
-
         let mut args = HashSet::new();
         for arg in &node.params {
             if args.contains(arg.name) {
@@ -149,10 +152,7 @@ impl<'a> NodeVisitor<'a> for Checker<'a> {
             args.insert(arg.name);
         }
 
-        self.scope
-            .add_function(node.name.name, node.params.len() as u8);
-
-        if node.name.name == "main" && node.params.len() != 0 {
+        if node.name.name == "main" && !node.params.is_empty() {
             self.errors.push(LilError {
                 header: "Too Many Arguments".to_string(),
                 location: Some(node.location),
@@ -175,6 +175,7 @@ impl<'a> NodeVisitor<'a> for Checker<'a> {
             ExprKind::StringLiteral(_) => {}
             ExprKind::FunctionCall(func_data) => {
                 let Some(arity) = self.scope.get_function(func_data.function_name.name) else {
+                    dbg!(&self.scope);
                     self.errors.push(LilError {
                         header: "Unknown Function".to_string(),
                         location: Some(func_data.function_name.location()),
@@ -598,5 +599,20 @@ mod tests {
         };
 
         assert_eq!(errs.len(), 1);
+    }
+
+    #[test]
+    fn test_func_declared_below() {
+        let src = "
+        fn main() {
+            test()
+        }
+        
+        fn test() {}
+        ";
+        let prog = parse_lil_program(src).unwrap();
+        let res = check_lil(&prog);
+
+        assert!(res.is_ok());
     }
 }
