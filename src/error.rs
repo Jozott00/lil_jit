@@ -23,8 +23,13 @@ impl LilError {
             } else {
                 let mut lines = lines.skip(startline - 1);
                 for n in startline..=endline {
-                    eprint!("{:2}> ", n);
-                    eprintln!("{}", lines.next().unwrap());
+                    match lines.next() {
+                        Some(line) => {
+                            eprint!("{:2}> ", n);
+                            eprintln!("{}", line);
+                        }
+                        None => {}
+                    }
                 }
                 eprintln!();
             }

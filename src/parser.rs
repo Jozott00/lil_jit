@@ -38,7 +38,7 @@ pub fn parse_lil_program(source: &str) -> Result<Program, LilError> {
 }
 
 fn parse_program(input: Span) -> IResult<Span, Program, Error<Span>> {
-    let (input, _) = multispace0(input)?;
+    let (input, _) = space(input)?;
     let (input, funcs) = complete(many1(parse_function_declaration))(input)?;
     eof(input)?;
 
@@ -56,23 +56,13 @@ fn parse_program(input: Span) -> IResult<Span, Program, Error<Span>> {
 }
 
 fn parse_function_declaration(input: Span) -> IResult<Span, FuncDec> {
-    let (input, (s, _, ident, _, _, _)) = tuple((
-        tag("fn"),
-        multispace0,
-        parse_identifier,
-        multispace0,
-        tag("("),
-        multispace0,
-    ))(input)?;
+    let (input, (s, _, ident, _, _, _)) =
+        tuple((tag("fn"), space, parse_identifier, space, tag("("), space))(input)?;
     let mut location = Location::from_span(&s);
 
-    let (input, args) = separated_list0(
-        tuple((multispace0, tag(","), multispace0)),
-        parse_identifier,
-    )(input)?;
+    let (input, args) = separated_list0(tuple((space, tag(","), space)), parse_identifier)(input)?;
 
-    let (input, (_, _, _, block)) =
-        tuple((multispace0, tag(")"), multispace0, parse_block))(input)?;
+    let (input, (_, _, _, block)) = tuple((space, tag(")"), space, parse_block))(input)?;
 
     location = location.merge(&block.location());
 
@@ -103,13 +93,8 @@ fn parse_stmt(input: Span) -> IResult<Span, Stmt> {
 
 fn parse_assignment(input: Span) -> IResult<Span, Stmt> {
     let (input, decl) = opt(tuple((tag("let"), multispace1)))(input)?;
-    let (input, (name, _, _, _, expr)) = tuple((
-        parse_identifier,
-        multispace0,
-        tag("="),
-        multispace0,
-        parse_expr,
-    ))(input)?;
+    let (input, (name, _, _, _, expr)) =
+        tuple((parse_identifier, space, tag("="), space, parse_expr))(input)?;
 
     let start = match decl {
         Some((kw, _)) => Location::from_span(&kw),
@@ -129,9 +114,9 @@ fn parse_assignment(input: Span) -> IResult<Span, Stmt> {
 
 fn parse_if(input: Span) -> IResult<Span, Stmt> {
     let (input, (start, _, cond, _, block)) =
-        tuple((tag("if"), multispace0, parse_expr, multispace0, parse_block))(input)?;
+        tuple((tag("if"), space, parse_expr, space, parse_block))(input)?;
 
-    let (input, other) = opt(tuple((multispace0, tag("else"), multispace0, parse_block)))(input)?;
+    let (input, other) = opt(tuple((space, tag("else"), space, parse_block)))(input)?;
 
     let other = other.map(|(_, _, _, else_block)| Box::new(else_block));
 
@@ -151,17 +136,17 @@ fn parse_if(input: Span) -> IResult<Span, Stmt> {
 fn parse_for(input: Span) -> IResult<Span, Stmt> {
     let (input, (start, _, pre, _, _, _, cond, _, _, _, post, _, block)) = tuple((
         tag("for"),
-        multispace0,
+        space,
         opt(parse_stmt),
-        multispace0,
+        space,
         tag(";"),
-        multispace0,
+        space,
         parse_expr,
-        multispace0,
+        space,
         tag(";"),
-        multispace0,
+        space,
         opt(parse_stmt),
-        multispace0,
+        space,
         parse_block,
     ))(input)?;
 
@@ -183,7 +168,7 @@ fn parse_for(input: Span) -> IResult<Span, Stmt> {
 //     test(2)
 // }
 fn parse_return(input: Span) -> IResult<Span, Stmt> {
-    let (input, (first, _, expr)) = tuple((tag("return"), multispace0, parse_expr))(input)?;
+    let (input, (first, _, expr)) = tuple((tag("return"), space, parse_expr))(input)?;
     let location = Location::from_span(&first).merge(&expr.location());
 
     Ok((
@@ -208,7 +193,7 @@ fn parse_expr_stmt(input: Span) -> IResult<Span, Stmt> {
 }
 
 fn parse_expr(input: Span) -> IResult<Span, Expr> {
-    let (input, _) = multispace0(input)?;
+    let (input, _) = space(input)?;
     let (input, mut expr) = (alt((
         parse_grouped_expr,
         parse_showtext_call,
@@ -217,14 +202,14 @@ fn parse_expr(input: Span) -> IResult<Span, Expr> {
         parse_int_lit,
     )))(input)?;
 
-    let (input, _) = multispace0(input)?;
+    let (input, _) = space(input)?;
     let (input, opt_bin_expr) = opt(parse_binary_expr(expr.clone()))(input)?;
 
     if let Some(bin_expr) = opt_bin_expr {
         expr = bin_expr
     }
 
-    let (input, _) = multispace0(input)?;
+    let (input, _) = space(input)?;
     Ok((input, expr))
 }
 
@@ -232,15 +217,15 @@ fn parse_block(input: Span) -> IResult<Span, Stmt> {
     // Single statement blocks
     // Example: if false: return 666
     if input.starts_with(":") {
-        let (input, (_, _, stmt)) = tuple((tag(":"), multispace0, parse_stmt))(input)?;
+        let (input, (_, _, stmt)) = tuple((tag(":"), space, parse_stmt))(input)?;
         return Ok((input, stmt));
     }
 
     // Multi statement blocks
     // Example: if false { return 666}
-    let (input, (first, _)) = tuple((tag("{"), multispace0))(input)?;
+    let (input, (first, _)) = tuple((tag("{"), space))(input)?;
     let (input, stmts) = many0(parse_stmt)(input)?;
-    let (input, (last, _)) = tuple((tag("}"), multispace0))(input)?;
+    let (input, (last, _)) = tuple((tag("}"), space))(input)?;
     let location = Location::from_span(&first).merge(&Location::from_span(&last));
 
     Ok((
@@ -254,13 +239,8 @@ fn parse_block(input: Span) -> IResult<Span, Stmt> {
 
 fn parse_showtext_call(input: Span) -> IResult<Span, Expr> {
     let (input, ident) = parse_identifier(input)?;
-    let (input, (_, _, message, _, last)) = tuple((
-        tag("("),
-        multispace0,
-        parse_string_lit,
-        multispace0,
-        tag(")"),
-    ))(input)?;
+    let (input, (_, _, message, _, last)) =
+        tuple((tag("("), space, parse_string_lit, space, tag(")")))(input)?;
 
     let location = ident.location().merge(&last.into());
 
@@ -383,6 +363,18 @@ fn parse_identifier(input: Span) -> IResult<Span, Identifier> {
             location: Location::from_span(&name),
         },
     ))
+}
+
+fn parse_comment(input: Span) -> IResult<Span, Span> {
+    let (input, _) = tag("//")(input)?;
+    let (input, _) = take_until("\n")(input)?;
+    Ok((input, input))
+}
+
+fn space(input: Span) -> IResult<Span, ()> {
+    let (input, _) = separated_list0(multispace0, parse_comment)(input)?;
+    let (input, _) = multispace0(input)?;
+    Ok((input, ()))
 }
 
 #[cfg(test)]
