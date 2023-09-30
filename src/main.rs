@@ -6,10 +6,8 @@ use clap::Parser;
 use log::LevelFilter;
 
 use lil_jit;
-use lil_jit::checker::check_lil;
-use lil_jit::jit::run_jit;
 use lil_jit::logger::LILLOGGER;
-use lil_jit::parser::parse_lil_program;
+use lil_jit::run;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -55,19 +53,6 @@ fn main() {
     let code = fs::read_to_string(&cli.filename)
         .expect(&*format!("Unable to read file: {}", &cli.filename));
 
-    let ast = parse_lil_program(code.as_str()).unwrap_or_else(|error| {
-        error.print(&code);
-        exit(1);
-    });
-
-    log::info!(target: "dump-ast", "AST DUMP:\n{:#?}", ast);
-
-    check_lil(&ast).unwrap_or_else(|errors| {
-        for error in errors {
-            error.print(code.as_str());
-        }
-        exit(1)
-    });
-
-    run_jit(&ast);
+    let exit_code = run(&code).unwrap_or_else(|e| exit(e));
+    exit(exit_code);
 }

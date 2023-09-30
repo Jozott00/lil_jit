@@ -39,13 +39,13 @@ static mut JIT_REF: Option<usize> = None;
 /// the given Program.
 ///
 /// Uses unsafe operations to make the created JIT object statically available.
-pub fn run_jit(ast: &Program) {
+pub fn run_jit(ast: &Program) -> i32 {
     let mut jit = JIT::<Arm64>::new(&ast);
     unsafe {
         // store reference to jit object statically
         JIT_REF = Some((&jit) as *const _ as usize);
     }
-    jit.run();
+    jit.run()
 }
 
 pub struct JIT<'a, D: RegDefinition> {
@@ -59,7 +59,7 @@ impl<'a, D: RegDefinition> JIT<'a, D> {
         JIT { jit_data }
     }
 
-    fn run(&mut self) {
+    fn run(&mut self) -> i32 {
         self.compile("main");
 
         let main_info = self
@@ -71,7 +71,7 @@ impl<'a, D: RegDefinition> JIT<'a, D> {
         let main = main_info.codegen_data.nullary_fn_ptr();
         let exit_code = unsafe { main() };
 
-        println!("EXIT CODE: {exit_code}")
+        exit_code
     }
 
     fn compile(&mut self, funcname: &'a str) {
