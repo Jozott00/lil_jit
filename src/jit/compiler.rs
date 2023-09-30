@@ -22,7 +22,7 @@ use crate::jit::codegendata::{CodegenData, InstrCount};
 use crate::jit::codeinfo::CodeInfo;
 use crate::jit::funcinfo::FuncInfo;
 use crate::jit::jitdata::JitData;
-use crate::jit::lir::{Label, LIR, LirReg};
+use crate::jit::lir::{Label, LirReg, LIR};
 use crate::jit::reg_alloc::reg_off::RegOff;
 use crate::jit::stub::compile_stub;
 
@@ -288,7 +288,7 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
 
                 let label_index = *label_index;
                 let cd = self.cd();
-                let offset = label_index as i32 - cd.ins_count() as i32;
+                let offset = (label_index as i32 - cd.ins_count() as i32) * 4;
                 cd.b_from_byte_offset(offset);
             }
             LIR::JumpIfFalse(lir_reg, label) => {
