@@ -3,16 +3,16 @@ use nom::bytes::complete::{tag, tag_no_case, take_until, take_while1};
 use nom::character::complete::{char, digit1, multispace0, multispace1};
 use nom::combinator::{complete, eof, opt, value};
 use nom::error::Error;
-use nom::IResult;
 use nom::multi::{many0, many1, separated_list0};
 use nom::sequence::tuple;
+use nom::IResult;
 use nom_locate::LocatedSpan;
 
+use crate::ast::StmtKind::{Assignment, ExprStmt, For, If, Return};
 use crate::ast::{
     AstNode, BinaryOp, Expr, ExprKind, FuncDec, FunctionCallData, Identifier, Program, Stmt,
     StmtKind,
 };
-use crate::ast::StmtKind::{Assignment, ExprStmt, For, If, Return};
 use crate::error::LilError;
 use crate::location::Location;
 
@@ -316,10 +316,10 @@ fn parse_binary_op(input: Span) -> IResult<Span, BinaryOp> {
         value(BinaryOp::Divide, tag_no_case("/")),
         value(BinaryOp::Equals, tag_no_case("==")),
         value(BinaryOp::NotEqual, tag_no_case("!=")),
-        value(BinaryOp::Greater, tag_no_case(">")),
         value(BinaryOp::GreaterEqual, tag_no_case(">=")),
-        value(BinaryOp::Less, tag_no_case("<")),
+        value(BinaryOp::Greater, tag_no_case(">")),
         value(BinaryOp::LessEqual, tag_no_case("<=")),
+        value(BinaryOp::Less, tag_no_case("<")),
     ))(input)?;
 
     Ok((input, binary_op))
@@ -389,7 +389,7 @@ fn parse_identifier(input: Span) -> IResult<Span, Identifier> {
 mod tests {
     use super::*;
 
-// Identifier tests
+    // Identifier tests
 
     #[test]
     fn identifier_normal_test() {
@@ -587,6 +587,35 @@ mod tests {
         assert_eq!(rest_input.fragment(), &"");
         assert!(
             matches!(expr.kind, ExprKind::BinaryExpr(_, BinaryOp::NotEqual, _)),
+            "Expected BinaryExpr with NotEqual operation"
+        );
+    }
+
+    #[test]
+    fn test_parse_expr_with_greater_equal() {
+        let input = Span::new("a >= b");
+        let result = parse_expr(input);
+
+        let (rest_input, expr) = result.unwrap();
+        assert_eq!(rest_input.fragment(), &"");
+        assert!(
+            matches!(
+                expr.kind,
+                ExprKind::BinaryExpr(_, BinaryOp::GreaterEqual, _)
+            ),
+            "Expected BinaryExpr with NotEqual operation"
+        );
+    }
+
+    #[test]
+    fn test_parse_expr_with_less_equal() {
+        let input = Span::new("a <= b");
+        let result = parse_expr(input);
+
+        let (rest_input, expr) = result.unwrap();
+        assert_eq!(rest_input.fragment(), &"");
+        assert!(
+            matches!(expr.kind, ExprKind::BinaryExpr(_, BinaryOp::LessEqual, _)),
             "Expected BinaryExpr with NotEqual operation"
         );
     }
