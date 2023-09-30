@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::jit::lir::{LirFunction, LirReg, LIR};
+use crate::jit::lir::{LIR, LirFunction, LirReg};
 
 /// Vector of `LiveInterval`, representing all live intervals in functions.
 pub type LiveIntervals = Vec<LiveInterval>;

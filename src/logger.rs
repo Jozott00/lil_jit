@@ -1,7 +1,6 @@
-use lazy_static::lazy_static;
-use log::{Level, LevelFilter, Metadata, Record, SetLoggerError};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Mutex;
+
+use log::{Level, Metadata, Record};
 
 pub static LILLOGGER: LilLogger = LilLogger {
     verbose: AtomicBool::new(false),

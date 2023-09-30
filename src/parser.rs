@@ -3,16 +3,16 @@ use nom::bytes::complete::{tag, tag_no_case, take_until, take_while1};
 use nom::character::complete::{char, digit1, multispace0, multispace1};
 use nom::combinator::{complete, eof, opt, value};
 use nom::error::Error;
+use nom::IResult;
 use nom::multi::{many0, many1, separated_list0};
 use nom::sequence::tuple;
-use nom::IResult;
 use nom_locate::LocatedSpan;
 
-use crate::ast::StmtKind::{Assignment, ExprStmt, For, If, Return};
 use crate::ast::{
     AstNode, BinaryOp, Expr, ExprKind, FuncDec, FunctionCallData, Identifier, Program, Stmt,
     StmtKind,
 };
+use crate::ast::StmtKind::{Assignment, ExprStmt, For, If, Return};
 use crate::error::LilError;
 use crate::location::Location;
 
@@ -389,7 +389,7 @@ fn parse_identifier(input: Span) -> IResult<Span, Identifier> {
 mod tests {
     use super::*;
 
-    // Identifier tests
+// Identifier tests
 
     #[test]
     fn identifier_normal_test() {

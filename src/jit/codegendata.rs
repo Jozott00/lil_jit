@@ -1,8 +1,8 @@
+use std::{mem, ptr, slice};
 use std::ffi::c_void;
 use std::fmt::{Display, Formatter};
 use std::mem::size_of;
 use std::ptr::null_mut;
-use std::{mem, ptr, slice};
 
 use armoured_rust::instruction_encoding::{AddressableInstructionProcessor, InstructionProcessor, InstructionSet, InstructionSetWithAddress};
 use armoured_rust::instruction_encoding::branch_exception_system::{BranchExceptionSystem, BranchExceptionSystemWithAddress};
@@ -62,7 +62,7 @@ use armoured_rust::instruction_encoding::loads_and_stores::load_store_register_r
 use armoured_rust::instruction_encoding::loads_and_stores::load_store_register_unsigned_imm::LoadStoreRegisterUnsignedImmediate;
 use armoured_rust::instruction_encoding::loads_and_stores::memory_copy_and_memory_set::MemoryCopyAndMemorySet;
 use armoured_rust::types::{Instruction, InstructionPointer, Offset32};
-use bad64::{DecodeError, disasm};
+use bad64::disasm;
 use libc::{MAP_ANON, MAP_PRIVATE, PROT_READ, PROT_WRITE};
 use log::{info, warn};
 

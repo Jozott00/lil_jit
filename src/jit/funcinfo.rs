@@ -1,10 +1,6 @@
-use crate::ast::FuncDec;
 use crate::jit::arch_def::RegDefinition;
-use crate::jit::lir::{LirFunction, LirReg};
+use crate::jit::lir::LirFunction;
 use crate::jit::reg_alloc::reg_mapping::RegMapping;
-use crate::jit::reg_alloc::reg_off::RegOff;
-use bad64::Reg;
-use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct FuncInfo<'a, D: RegDefinition> {

@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-use crate::ast::Program;
 use crate::ast::{AstNode, Stmt, StmtKind};
 use crate::ast::{Expr, ExprKind, FuncDec};
+use crate::ast::Program;
 use crate::built_in::BUILTIN_FUNCS;
 use crate::error::LilError;
 use crate::visitor;
-use crate::visitor::{walk_expr, walk_funcdec, walk_stmt, walk_stmt_list, NodeVisitor};
+use crate::visitor::{NodeVisitor, walk_expr, walk_funcdec, walk_stmt, walk_stmt_list};
 
 pub fn check_lil(program: &Program) -> Result<(), Vec<LilError>> {
     let mut checker = Checker::new(program);

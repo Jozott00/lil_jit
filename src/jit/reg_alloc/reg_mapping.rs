@@ -1,10 +1,10 @@
-use crate::jit::arch_def::{RegDefinition, Register};
-use crate::jit::lir::LirReg;
-use crate::jit::reg_alloc::reg_off::RegOff;
-use libc::write;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::marker::PhantomData;
+
+use crate::jit::arch_def::{RegDefinition, Register};
+use crate::jit::lir::LirReg;
+use crate::jit::reg_alloc::reg_off::RegOff;
 
 #[derive(Debug)]
 pub struct RegMapping<D: RegDefinition> {

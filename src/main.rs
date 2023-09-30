@@ -1,15 +1,15 @@
 use std::fs;
 use std::process::exit;
+use std::sync::atomic::Ordering;
 
 use clap::Parser;
+use log::LevelFilter;
 
 use lil_jit;
 use lil_jit::checker::check_lil;
-use lil_jit::jit::{run_jit, JIT};
-use lil_jit::logger::{LilLogger, LILLOGGER};
+use lil_jit::jit::run_jit;
+use lil_jit::logger::LILLOGGER;
 use lil_jit::parser::parse_lil_program;
-use log::LevelFilter;
-use std::sync::atomic::{AtomicBool, Ordering};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]

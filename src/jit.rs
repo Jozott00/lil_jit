@@ -3,13 +3,11 @@
 // 2. funcinfo .. higher level information of a function
 // 4. codegendata .. function specific machine code data (such as mcodebase, mcodeptr, etc.)
 
-use crate::ast::Program;
 use armoured_rust::instruction_encoding::branch_exception_system::unconditional_branch_immediate::UnconditionalBranchImmediateWithAddress;
 use armoured_rust::types::InstructionPointer;
-use log::{debug, info};
-use std::arch::global_asm;
-use std::fmt::format;
+use log::debug;
 
+use crate::ast::Program;
 use crate::jit::arch_def::arm64::Arm64;
 use crate::jit::arch_def::RegDefinition;
 use crate::jit::compiler::compile_func;

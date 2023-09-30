@@ -1,5 +1,3 @@
-use armoured_rust::assert_panic;
-use armoured_rust::instruction_encoding::AddressableInstructionProcessor;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 
@@ -11,11 +9,10 @@ use armoured_rust::instruction_encoding::data_proc_imm::add_substract_imm::AddSu
 use armoured_rust::instruction_encoding::data_proc_imm::mov_wide_imm::MovWideImmediate;
 use armoured_rust::instruction_encoding::data_proc_reg::conditional_select::ConditionalSelect;
 use armoured_rust::instruction_encoding::data_proc_reg::data_proc_two_src::DataProcessingTwoSource;
-use armoured_rust::instruction_encoding::loads_and_stores::load_store_reg_pair_post_indexed::LoadStoreRegisterPairPostIndexed;
 use armoured_rust::instruction_encoding::loads_and_stores::load_store_reg_pre_post_indexed::LoadStoreRegisterPrePostIndexed;
 use armoured_rust::types::{HW, InstructionPointer};
 use armoured_rust::types::condition::Condition::{EQ, GE, GT, LE, LT, NE};
-use armoured_rust::types::register::{WZR, XZR};
+use armoured_rust::types::register::WZR;
 use log::warn;
 
 use crate::ast::BinaryOp;
@@ -25,9 +22,8 @@ use crate::jit::codegendata::{CodegenData, InstrCount};
 use crate::jit::codeinfo::CodeInfo;
 use crate::jit::funcinfo::FuncInfo;
 use crate::jit::jitdata::JitData;
-use crate::jit::lir::{Label, LirReg, LIR};
+use crate::jit::lir::{Label, LIR, LirReg};
 use crate::jit::reg_alloc::reg_off::RegOff;
-
 use crate::jit::stub::compile_stub;
 
 pub fn compile_func<'a, 'b, D: RegDefinition>(

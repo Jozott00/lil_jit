@@ -1,5 +1,6 @@
-use armoured_rust::types::InstructionPointer;
 use std::collections::{HashMap, HashSet};
+
+use armoured_rust::types::InstructionPointer;
 
 #[derive(Debug, Default)]
 pub struct StubRefStore<'a> {

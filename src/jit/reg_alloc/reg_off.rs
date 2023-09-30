@@ -1,4 +1,3 @@
-use crate::jit::lir::LirReg;
 use armoured_rust::types::Register;
 
 /// Represents the value of a register or offset

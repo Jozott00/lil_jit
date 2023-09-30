@@ -1,6 +1,7 @@
+use std::collections::HashMap;
+
 use crate::jit::reg_alloc::reg_off::RegOff;
 use crate::jit::scope::Scope;
-use std::collections::HashMap;
 
 // TODO: Write somewhere else
 const MAX_CALLEE_REG: i32 = 18;

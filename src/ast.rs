@@ -1,5 +1,6 @@
-use crate::location::Location;
 use std::fmt;
+
+use crate::location::Location;
 
 pub trait AstNode: fmt::Display {
     fn location(&self) -> Location;

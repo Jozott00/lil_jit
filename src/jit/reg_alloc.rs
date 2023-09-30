@@ -1,16 +1,15 @@
+use std::marker::PhantomData;
+
+use crate::jit::arch_def::{RegDefinition, Register};
+use crate::jit::lir::LirFunction;
+use crate::jit::reg_alloc::live_interval::{compute_live_intervals, LiveInterval, LiveIntervals};
+use crate::jit::reg_alloc::reg_mapping::RegMapping;
+use crate::jit::reg_alloc::reg_off::RegOff;
+
 mod live_interval;
 pub mod reg_mapping;
 pub mod reg_off;
 mod reg_repo;
-
-use crate::jit::arch_def::{RegDefinition, Register};
-use crate::jit::lir::LirFunction;
-
-use crate::jit::reg_alloc::live_interval::{compute_live_intervals, LiveInterval, LiveIntervals};
-use crate::jit::reg_alloc::reg_off::RegOff;
-
-use crate::jit::reg_alloc::reg_mapping::RegMapping;
-use std::marker::PhantomData;
 
 pub fn alloc_reg<D: RegDefinition>(func: &LirFunction) -> RegMapping<D> {
     let live_intervals = compute_live_intervals(func);
@@ -115,11 +114,13 @@ impl<D: RegDefinition> RegAllocator<D> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::fmt::Debug;
+
     use crate::checker::check_lil;
-    use crate::jit::lir::{compile_to_lir, LirReg};
+    use crate::jit::lir::compile_to_lir;
     use crate::parser::parse_lil_program;
-    use std::fmt::{Debug, Formatter};
+
+    use super::*;
 
     fn create_prog(str: &str) -> LirFunction {
         let prog = parse_lil_program(str).expect("Couldn't parse program");
