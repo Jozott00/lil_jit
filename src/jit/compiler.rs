@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::marker::PhantomData;
 
 use armoured_rust::instruction_encoding::branch_exception_system::compare_and_branch_imm::CompareAndBranchImm;
+use armoured_rust::instruction_encoding::branch_exception_system::exception_generation::ExceptionGeneration;
 use armoured_rust::instruction_encoding::branch_exception_system::unconditional_branch_immediate::{UnconditionalBranchImmediate, UnconditionalBranchImmediateWithAddress};
 use armoured_rust::instruction_encoding::branch_exception_system::unconditional_branch_register::UnconditionalBranchRegister;
 use armoured_rust::instruction_encoding::common_aliases::CommonAliases;
@@ -10,10 +11,10 @@ use armoured_rust::instruction_encoding::data_proc_imm::mov_wide_imm::MovWideImm
 use armoured_rust::instruction_encoding::data_proc_reg::conditional_select::ConditionalSelect;
 use armoured_rust::instruction_encoding::data_proc_reg::data_proc_two_src::DataProcessingTwoSource;
 use armoured_rust::instruction_encoding::loads_and_stores::load_store_reg_pre_post_indexed::LoadStoreRegisterPrePostIndexed;
-use armoured_rust::types::{HW, InstructionPointer};
+use armoured_rust::types::{HW, InstructionPointer, UImm16};
 use armoured_rust::types::condition::Condition::{EQ, GE, GT, LE, LT, NE};
 use armoured_rust::types::register::WZR;
-use log::warn;
+use log::{info, warn};
 
 use crate::ast::BinaryOp;
 use crate::built_in::BUILTIN_FUNCS;
@@ -22,7 +23,7 @@ use crate::jit::codegendata::{CodegenData, InstrCount};
 use crate::jit::codeinfo::CodeInfo;
 use crate::jit::funcinfo::FuncInfo;
 use crate::jit::jitdata::JitData;
-use crate::jit::lir::{Label, LIR, LirReg};
+use crate::jit::lir::{Label, LirReg, LIR};
 use crate::jit::reg_alloc::reg_off::RegOff;
 use crate::jit::stub::compile_stub;
 
@@ -90,6 +91,8 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
     }
 
     fn compile_prolog(&mut self) {
+        // self.cd().brk(0);
+
         // save x30 (link) on stack
         self.cd().str_64_imm_pre_index(30, 31, -16);
 
@@ -341,12 +344,27 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
                     // TODO: handle spilled arguments
                 }
 
+                info!(target: "verbose", "EMIT CALL TO: {:#x}", func_ptr as usize);
+
+                // save the instruction count of the actual branch, used if we call stub
+                let call_instr_count = self.cd().instr_count();
+
+                // FIXME: current approach works for all function locations, but is inefficient
+                // if offset is within 32bit, we should us bl_to_addr!
+                // IMPORTANT: Changes to call methods have to also be done for the call patch
+                // self.cd().bl_to_addr(func_ptr as usize);
+                self.cd()
+                    .mov_arbitrary_imm(D::temp3(), func_ptr as u64, false);
+                self.cd().blr(D::temp3());
+
+                self.mov_reg(dreg, D::ret_reg());
+                self.store_dst(dest, dreg);
+
                 // if we call a stub, add add function name together with instructionCounter to
                 // local stub_refs map. After the function compilation this is stored in the
                 // jit_data.stub_ref_store. The late storage is required, as the method may extend
                 // while compilation!
                 if is_stub_call {
-                    let instr_count = self.cd().instr_count();
                     let func_name = self
                         .jit_data
                         .uncompiled_funcs
@@ -357,13 +375,8 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
                     self.stub_refs
                         .entry(func_name)
                         .or_insert_with(Vec::new)
-                        .push(instr_count);
+                        .push(call_instr_count);
                 }
-
-                self.cd().bl_to_addr(func_ptr as usize);
-                self.mov_reg(dreg, D::ret_reg());
-
-                self.store_dst(dest, dreg);
             }
             LIR::CallText(dest, has_newline, text) => {
                 let dreg = self.get_dst(dest, D::temp1());
@@ -390,7 +403,12 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
                 self.cd().movk_64_imm_lsl(0, p3_16, HW::LSL32);
                 self.cd().movk_64_imm_lsl(0, p4_16, HW::LSL48);
 
-                self.cd().bl_to_addr(func_ptr);
+                // FIXME: If offset is within 32bit, we should use the commented bl_to_addr method
+                // self.cd().bl_to_addr(func_ptr);
+                self.cd()
+                    .mov_arbitrary_imm(D::temp3(), func_ptr as u64, false);
+                self.cd().blr(D::temp3());
+
                 self.mov_reg(dreg, D::ret_reg());
 
                 self.store_dst(dest, dreg);

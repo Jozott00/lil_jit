@@ -2,8 +2,8 @@ use std::arch::global_asm;
 
 use armoured_rust::types::InstructionPointer;
 
-use crate::jit::{JIT, JIT_REF};
 use crate::jit::arch_def::arm64::Arm64;
+use crate::jit::{JIT, JIT_REF};
 
 // This global assembler block defines a stub for ARM64 Arch-based systems.
 // This function uses the stack to save context, triggers compilation, then restore the context.
@@ -21,7 +21,9 @@ global_asm!(
     "
     .global {}
     {}:
-        sub x30, x30, #4        // Get actual call address (instruction before x30) 
+        // TODO: The one with 4 offset is used when branching with offset
+        // sub x30, x30, #4     // Get actual call address (instruction before x30) 
+        sub x30, x30, #20       // Used for absolute address branching. Pointer before address loading
         str x30, [sp, #-16]!    // Save link on stack
 
         // Save all possible argument registers

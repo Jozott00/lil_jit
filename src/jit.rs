@@ -3,7 +3,9 @@
 // 2. funcinfo .. higher level information of a function
 // 4. codegendata .. function specific machine code data (such as mcodebase, mcodeptr, etc.)
 
+use armoured_rust::instruction_encoding::branch_exception_system::exception_generation::ExceptionGeneration;
 use armoured_rust::instruction_encoding::branch_exception_system::unconditional_branch_immediate::UnconditionalBranchImmediateWithAddress;
+use armoured_rust::instruction_encoding::branch_exception_system::unconditional_branch_register::UnconditionalBranchRegister;
 use armoured_rust::types::InstructionPointer;
 use log::debug;
 
@@ -139,10 +141,17 @@ impl<'a, D: RegDefinition> JIT<'a, D> {
                 );
 
             for code_ref in code_refs {
+                log::info!(target: "verbose", "PATCH CALL TO {:#x} AT REFERENCE {:#x}", func_ptr as usize, (code_ref as usize));
+
                 caller_info.codegen_data.patch_at(code_ref, |cd| {
-                    cd.bl_to_addr(func_ptr as usize);
+                    // FIXME: This approach is quite inefficient, but required. See compiler.rs CALL instruction generation
+                    // cd.bl_to_addr(func_ptr as usize);
+                    cd.mov_arbitrary_imm(D::temp3(), func_ptr as u64, false);
+                    cd.blr(D::temp3());
                 });
             }
+
+            log::info!(target: "dump-disasm", "-----\nDISASSEMBLY AFTER PATCH FOR {}:\n{}-------\n", caller_info.func_info.name(), caller_info.codegen_data);
         }
     }
 }
