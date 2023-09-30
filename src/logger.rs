@@ -8,6 +8,7 @@ pub static LILLOGGER: LilLogger = LilLogger {
     dump_ir: AtomicBool::new(false),
     dump_reg_alloc: AtomicBool::new(false),
     dump_disasm: AtomicBool::new(false),
+    dump_disasm_patch: AtomicBool::new(false),
 };
 
 pub struct LilLogger {
@@ -16,6 +17,7 @@ pub struct LilLogger {
     pub dump_ir: AtomicBool,
     pub dump_reg_alloc: AtomicBool,
     pub dump_disasm: AtomicBool,
+    pub dump_disasm_patch: AtomicBool,
 }
 
 impl log::Log for LilLogger {
@@ -30,6 +32,7 @@ impl log::Log for LilLogger {
             "dump-ir" => self.dump_ir.fetch_and(true, Ordering::Relaxed),
             "dump-reg-alloc" => self.dump_reg_alloc.fetch_and(true, Ordering::Relaxed),
             "dump-disasm" => self.dump_disasm.fetch_and(true, Ordering::Relaxed),
+            "dump-disasm-patch" => self.dump_disasm_patch.fetch_and(true, Ordering::Relaxed),
             _ => true,
         }
     }

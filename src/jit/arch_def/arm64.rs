@@ -10,7 +10,8 @@ impl RegDefinition for Arm64 {
     }
 
     fn caller_saved() -> &'static [Register] {
-        const CALLER_REGS: [Register; 12] = [3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15];
+        // do not contain temporary registers
+        const CALLER_REGS: [Register; 12] = [2, 3, 4, 5, 6, 7, 10, 11, 12, 13, 14, 15];
         return &CALLER_REGS;
     }
 
@@ -32,7 +33,7 @@ impl RegDefinition for Arm64 {
     }
 
     fn temp3() -> Register {
-        2
+        9 // caller saved but non-argument-register
     }
 
     fn reg_as_str(reg: Register) -> String {

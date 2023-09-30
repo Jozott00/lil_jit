@@ -1,0 +1,8 @@
+version: '3'
+services:
+  lil_jit:
+    build: .
+    volumes:
+      - .:/workspace
+    working_dir: /workspace
+    command: /bin/sh

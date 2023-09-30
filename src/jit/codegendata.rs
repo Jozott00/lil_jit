@@ -1,8 +1,8 @@
-use std::{mem, ptr, slice};
 use std::ffi::c_void;
 use std::fmt::{Display, Formatter};
 use std::mem::size_of;
 use std::ptr::null_mut;
+use std::{mem, ptr, slice};
 
 use armoured_rust::instruction_encoding::{AddressableInstructionProcessor, InstructionProcessor, InstructionSet, InstructionSetWithAddress};
 use armoured_rust::instruction_encoding::branch_exception_system::{BranchExceptionSystem, BranchExceptionSystemWithAddress};
@@ -61,7 +61,7 @@ use armoured_rust::instruction_encoding::loads_and_stores::load_store_register_p
 use armoured_rust::instruction_encoding::loads_and_stores::load_store_register_regoffset::LoadStoreRegisterRegisterOffset;
 use armoured_rust::instruction_encoding::loads_and_stores::load_store_register_unsigned_imm::LoadStoreRegisterUnsignedImmediate;
 use armoured_rust::instruction_encoding::loads_and_stores::memory_copy_and_memory_set::MemoryCopyAndMemorySet;
-use armoured_rust::types::{Instruction, InstructionPointer, Offset32};
+use armoured_rust::types::{HW, Instruction, InstructionPointer, Offset32, Register, UImm16};
 use bad64::disasm;
 use libc::{MAP_ANON, MAP_PRIVATE, PROT_READ, PROT_WRITE};
 use log::{info, warn};
@@ -155,6 +155,25 @@ impl CodegenData {
             self.make_executable()
         }
     }
+
+    pub fn mov_arbitrary_imm(&mut self, dest: Register, imm: u64, fill_with_nops: bool) {
+        for i in 0..4 {
+            let chunk = ((imm >> (16 * i)) & 0xFFFF) as UImm16;
+
+            if chunk == 0 && i != 0 {
+                if fill_with_nops {
+                    self.nop()
+                }
+                continue;
+            }
+
+            if i == 0 {
+                self.movz_64_imm_lsl(dest, chunk, HW::from(i));
+            } else {
+                self.movk_64_imm_lsl(dest, chunk, HW::from(i));
+            }
+        }
+    }
 }
 
 // private methods
@@ -244,6 +263,39 @@ impl CodegenData {
     /// Checks whether the current code pointer is within the bounds of the allocated memory block.
     fn in_bound(&self) -> bool {
         self.mcodeptr as usize <= self.bound_ptr() - size_of::<Instruction>()
+    }
+}
+
+/// Additional instruction emitting shortcuts
+impl CodegenData {
+    /// Emits instruction to call a function at the given `addr`.
+    ///
+    /// There are two different emit approaches:
+    /// - If the relative offset to the addr is within 32 bit, it uses
+    /// a pc relative `bl` instruction.
+    /// - Otherwise it loads the absolute instruction in multiple immediate moves in
+    /// given `temp` and emits a `blr` with `temp`.
+    ///
+    /// In both cases a total of 5 instructions are emitted. In case
+    /// of pc relative, the starting 4 instructions consist of `nop` instructions.
+    pub fn func_call(&mut self, addr: usize, temp: Register) {
+        let offset_abs = (self.mcodeptr as usize)
+            .checked_sub(addr)
+            .unwrap_or_else(|| addr.checked_sub(self.mcodeptr as usize).unwrap());
+
+        if offset_abs <= MAX_OFFSET {
+            // fill four instruction with nop
+            self.nop();
+            self.nop();
+            self.nop();
+            self.nop();
+            // pc relative branch
+            self.bl_to_addr(addr);
+        } else {
+            // write addr in temp register. Fill with nops, so it will always emit 4 instructions
+            self.mov_arbitrary_imm(temp, addr as u64, true);
+            self.blr(temp);
+        }
     }
 }
 
