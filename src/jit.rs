@@ -144,14 +144,11 @@ impl<'a, D: RegDefinition> JIT<'a, D> {
                 log::info!(target: "verbose", "PATCH CALL TO {:#x} AT REFERENCE {:#x}", func_ptr as usize, (code_ref as usize));
 
                 caller_info.codegen_data.patch_at(code_ref, |cd| {
-                    // FIXME: This approach is quite inefficient, but required. See compiler.rs CALL instruction generation
-                    // cd.bl_to_addr(func_ptr as usize);
-                    cd.mov_arbitrary_imm(D::temp3(), func_ptr as u64, false);
-                    cd.blr(D::temp3());
+                    cd.func_call(func_ptr as usize, D::temp3());
                 });
             }
 
-            log::info!(target: "dump-disasm", "-----\nDISASSEMBLY AFTER PATCH FOR {}:\n{}-------\n", caller_info.func_info.name(), caller_info.codegen_data);
+            log::info!(target: "dump-disasm-patch", "-----\nDISASSEMBLY AFTER PATCH FOR {}:\n{}-------\n", caller_info.func_info.name(), caller_info.codegen_data);
         }
     }
 }

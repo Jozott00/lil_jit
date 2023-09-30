@@ -28,6 +28,9 @@ struct Cli {
     #[arg(long)]
     dump_disasm: bool,
 
+    #[arg(long)]
+    dump_disasm_patch: bool,
+
     #[arg(long, short)]
     verbose: bool,
 }
@@ -43,6 +46,9 @@ fn main() {
     LILLOGGER
         .dump_disasm
         .store(cli.dump_disasm, Ordering::Relaxed);
+    LILLOGGER
+        .dump_disasm_patch
+        .store(cli.dump_disasm_patch, Ordering::Relaxed);
     log::set_logger(&LILLOGGER).unwrap();
     log::set_max_level(LevelFilter::Info);
 

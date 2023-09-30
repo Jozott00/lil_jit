@@ -22,8 +22,7 @@ global_asm!(
     .global {}
     {}:
         // TODO: The one with 4 offset is used when branching with offset
-        // sub x30, x30, #4     // Get actual call address (instruction before x30) 
-        sub x30, x30, #20       // Used for absolute address branching. Pointer before address loading
+        sub x30, x30, #20       // Get actual call address (5 (5 * 4byte) instructions before x30)
         str x30, [sp, #-16]!    // Save link on stack
 
         // Save all possible argument registers

@@ -346,16 +346,9 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
 
                 info!(target: "verbose", "EMIT CALL TO: {:#x}", func_ptr as usize);
 
-                // save the instruction count of the actual branch, used if we call stub
+                // save the instruction count 4 instruction before actual call
                 let call_instr_count = self.cd().instr_count();
-
-                // FIXME: current approach works for all function locations, but is inefficient
-                // if offset is within 32bit, we should us bl_to_addr!
-                // IMPORTANT: Changes to call methods have to also be done for the call patch
-                // self.cd().bl_to_addr(func_ptr as usize);
-                self.cd()
-                    .mov_arbitrary_imm(D::temp3(), func_ptr as u64, false);
-                self.cd().blr(D::temp3());
+                self.cd().func_call(func_ptr as usize, D::temp3());
 
                 self.mov_reg(dreg, D::ret_reg());
                 self.store_dst(dest, dreg);
@@ -403,12 +396,7 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
                 self.cd().movk_64_imm_lsl(0, p3_16, HW::LSL32);
                 self.cd().movk_64_imm_lsl(0, p4_16, HW::LSL48);
 
-                // FIXME: If offset is within 32bit, we should use the commented bl_to_addr method
-                // self.cd().bl_to_addr(func_ptr);
-                self.cd()
-                    .mov_arbitrary_imm(D::temp3(), func_ptr as u64, false);
-                self.cd().blr(D::temp3());
-
+                self.cd().func_call(func_ptr, D::temp3());
                 self.mov_reg(dreg, D::ret_reg());
 
                 self.store_dst(dest, dreg);

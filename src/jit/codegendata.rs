@@ -156,11 +156,14 @@ impl CodegenData {
         }
     }
 
-    pub fn mov_arbitrary_imm(&mut self, dest: Register, imm: u64, optimized: bool) {
+    pub fn mov_arbitrary_imm(&mut self, dest: Register, imm: u64, fill_with_nops: bool) {
         for i in 0..4 {
             let chunk = ((imm >> (16 * i)) & 0xFFFF) as UImm16;
 
-            if optimized && chunk == 0 && i != 0 {
+            if chunk == 0 && i != 0 {
+                if fill_with_nops {
+                    self.nop()
+                }
                 continue;
             }
 
@@ -260,6 +263,39 @@ impl CodegenData {
     /// Checks whether the current code pointer is within the bounds of the allocated memory block.
     fn in_bound(&self) -> bool {
         self.mcodeptr as usize <= self.bound_ptr() - size_of::<Instruction>()
+    }
+}
+
+/// Additional instruction emitting shortcuts
+impl CodegenData {
+    /// Emits instruction to call a function at the given `addr`.
+    ///
+    /// There are two different emit approaches:
+    /// - If the relative offset to the addr is within 32 bit, it uses
+    /// a pc relative `bl` instruction.
+    /// - Otherwise it loads the absolute instruction in multiple immediate moves in
+    /// given `temp` and emits a `blr` with `temp`.
+    ///
+    /// In both cases a total of 5 instructions are emitted. In case
+    /// of pc relative, the starting 4 instructions consist of `nop` instructions.
+    pub fn func_call(&mut self, addr: usize, temp: Register) {
+        let offset_abs = (self.mcodeptr as usize)
+            .checked_sub(addr)
+            .unwrap_or_else(|| addr.checked_sub(self.mcodeptr as usize).unwrap());
+
+        if offset_abs <= MAX_OFFSET {
+            // fill four instruction with nop
+            self.nop();
+            self.nop();
+            self.nop();
+            self.nop();
+            // pc relative branch
+            self.bl_to_addr(addr);
+        } else {
+            // write addr in temp register. Fill with nops, so it will always emit 4 instructions
+            self.mov_arbitrary_imm(temp, addr as u64, true);
+            self.blr(temp);
+        }
     }
 }
 
