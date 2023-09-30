@@ -46,7 +46,7 @@ pub enum LIR {
     Return(LirReg),
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Hash)]
+#[derive(Debug, Eq, PartialEq, Clone, Hash, Ord, PartialOrd)]
 pub enum LirReg {
     Var(String),
     Tmp(u32),

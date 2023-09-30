@@ -99,17 +99,17 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
 
         // save callee saved registers
         // TODO: Be careful: if allocated registers are caller saved, this might result in collisions -> argument variables must not get caller saved registers
-        // for r in &self.code_info.func_info.reg_alloc().callee_saved() {
-        //     // FIXME: The 16 byte offset is for allignment but packing them together
-        //     // and fixing the allignment later would be leaner.
-        //     self.cd().str_64_imm_pre_index(*r, 31, -16);
-        // }
-        //
-        // // save framepointer on the stack
-        // self.cd().str_64_imm_pre_index(29, 31, -16);
-        //
-        // // Set the framepointer on to the current stack pointer
-        // self.cd().add_64_imm(29, 31, 0);
+        for r in &self.code_info.func_info.reg_alloc().callee_saved() {
+            // FIXME: The 16 byte offset is for allignment but packing them together
+            // and fixing the allignment later would be leaner.
+            self.cd().str_64_imm_pre_index(*r, 31, -16);
+        }
+
+        // save framepointer on the stack
+        self.cd().str_64_imm_pre_index(29, 31, -16);
+
+        // Set the framepointer on to the current stack pointer
+        self.cd().add_64_imm(29, 31, 0);
     }
 
     // x30 // link
@@ -119,22 +119,22 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
 
     fn compile_epilog(&mut self) {
         // sp <- fp
-        // self.cd().add_64_imm(31, 29, 0);
-        //
-        // // fp <- pop old_fp
-        // self.cd().ldr_64_imm_post_index(29, 31, 16);
-        //
-        // // restore callee saved registers
-        // for r in self
-        //     .code_info
-        //     .func_info
-        //     .reg_alloc()
-        //     .callee_saved()
-        //     .iter()
-        //     .rev()
-        // {
-        //     self.cd().ldr_64_imm_post_index(*r, 31, 16);
-        // }
+        self.cd().add_64_imm(31, 29, 0);
+
+        // fp <- pop old_fp
+        self.cd().ldr_64_imm_post_index(29, 31, 16);
+
+        // restore callee saved registers
+        for r in self
+            .code_info
+            .func_info
+            .reg_alloc()
+            .callee_saved()
+            .iter()
+            .rev()
+        {
+            self.cd().ldr_64_imm_post_index(*r, 31, 16);
+        }
 
         // restore x30 (link) from stack
         self.cd().ldr_64_imm_post_index(30, 31, 16);

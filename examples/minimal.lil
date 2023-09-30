@@ -1,9 +1,17 @@
+fn test_eins(a, b, c, d) {
+    showtextln("Called test_eins:")
+    showln(a)
+    showln(b)
+    showln(c)
+    showln(d)
+    return 1 + 4
+}
+
+fn test_zwei() {
+    return test_eins(4,3,2,1)
+}
+
 fn main() {
-    let a = 3
-    if a - 3 {
-        return a + 2
-    } else {
-        a = 666
-    }
-    return 2 + a
+    test_eins(1,2,3,4)
+    return test_zwei()
 }

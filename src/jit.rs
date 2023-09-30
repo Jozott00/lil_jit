@@ -92,7 +92,7 @@ impl<'a, D: RegDefinition> JIT<'a, D> {
         log::info!(target: "dump-ir", "------\nLIR DUMP FOR {}:\n{}\n------\n", funcname, lir);
 
         let reg_mapping = alloc_reg::<D>(&lir);
-        log::info!(target: "dump-reg-alloc", "------\nREGISTER ALLOCATION DUMP FOR {}:\n{:?}\n------\n", funcname, reg_mapping);
+        log::info!(target: "dump-reg-alloc", "------\nREGISTER ALLOCATION DUMP FOR {}:\n{}\n------\n", funcname, reg_mapping);
 
         let func_info = FuncInfo::new(funcname, lir, reg_mapping);
         let mut code_info = compile_func::<D>(func_info, &mut self.jit_data);
@@ -166,7 +166,7 @@ mod tests {
     #[test]
     fn test_minimal_prog() {
         let prog = create_prog("fn main() {}");
-        let mut jit = JIT::new(&prog);
+        let mut jit = JIT::<Arm64>::new(&prog);
         jit.run();
     }
 }

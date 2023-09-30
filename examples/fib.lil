@@ -5,5 +5,5 @@ fn fib(n) {
 }
 
 fn main() {
-    showln(fib(19))
+    showln(fib(12))
 }

@@ -15,4 +15,6 @@ pub trait RegDefinition: Debug {
     fn temp1() -> Register;
     fn temp2() -> Register;
     fn temp3() -> Register;
+
+    fn reg_as_str(reg: Register) -> String;
 }

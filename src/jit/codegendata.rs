@@ -64,7 +64,7 @@ use armoured_rust::instruction_encoding::loads_and_stores::memory_copy_and_memor
 use armoured_rust::types::{Instruction, InstructionPointer, Offset32};
 use bad64::{DecodeError, disasm};
 use libc::{MAP_ANON, MAP_PRIVATE, PROT_READ, PROT_WRITE};
-use log::warn;
+use log::{info, warn};
 
 /// Memory extension multiplier, used in CodegenData::extend_memory
 const MEMORY_ALLOCATION_MULTIPLIER: usize = 2;
@@ -169,6 +169,8 @@ impl CodegenData {
     fn extend_memory(&mut self) -> Result<(), std::io::Error> {
         let new_size = self.len * MEMORY_ALLOCATION_MULTIPLIER;
         let new_mem = alloc_mem(new_size)?;
+
+        info!(target: "verbose", "Extend memory... old_pos: {:#x}, new_pos: {:#x}", self.mcbase as usize, new_mem);
 
         let mcode_off = self.mcodeptr as usize - self.mcbase as usize;
 
@@ -322,8 +324,11 @@ impl AddressableInstructionProcessor<()> for CodegenData {
 
         debug_assert!(
             offset_abs <= MAX_OFFSET,
-            "Offset to address is too large (exceeds maximum of {:x})",
-            MAX_OFFSET
+            "Offset to address is too large: {:#x} (exceeds maximum of {:#x})\nHelp: code_ptr: {:#x} addr: {:#x}\n",
+            offset_abs,
+            MAX_OFFSET,
+            pc,
+            addr,
         );
 
         if addr >= pc {

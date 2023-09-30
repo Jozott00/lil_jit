@@ -17,8 +17,8 @@ use std::arch::global_asm;
 //    function call did nothing, disregarding side effects.
 global_asm!(
     "
-    .global _compile_stub
-    _compile_stub:
+    .global {}
+    {}:
         sub x30, x30, #4        // Get actual call address (instruction before x30) 
         str x30, [sp, #-16]!    // Save link on stack
 
@@ -31,7 +31,7 @@ global_asm!(
         mov x0, x30             // Pass modified link as argument to stub call
 
         // trigger jit compiler
-        bl _stub_call           
+        bl {}           
         
         // Load all possible argument registers
         ldp x6, x7, [sp], #16
@@ -41,7 +41,10 @@ global_asm!(
 
         ldr x30, [sp], #16      // restore modified link
         ret
-"
+",
+    sym compile_stub,
+    sym compile_stub,
+    sym stub_call
 );
 
 extern "C" {

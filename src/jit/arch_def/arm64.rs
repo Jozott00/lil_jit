@@ -34,4 +34,14 @@ impl RegDefinition for Arm64 {
     fn temp3() -> Register {
         2
     }
+
+    fn reg_as_str(reg: Register) -> String {
+        match reg {
+            0..=28 => format!("R{reg}"),
+            29 => "FP".to_string(),
+            30 => "LR".to_string(),
+            31 => "SP".to_string(),
+            _ => format!("Reg {reg} is no valid register!"),
+        }
+    }
 }

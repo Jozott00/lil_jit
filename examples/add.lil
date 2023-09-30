@@ -1,7 +1,7 @@
-fn add() {
-    return 1 + 2
+fn add(a, b) {
+    return b + a
 }
 
 fn main() {
-    return add()
+    return add(2, 3)
 }

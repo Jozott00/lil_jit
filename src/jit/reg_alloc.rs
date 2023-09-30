@@ -1,56 +1,21 @@
 mod live_interval;
+pub mod reg_mapping;
 pub mod reg_off;
 mod reg_repo;
 
 use crate::jit::arch_def::{RegDefinition, Register};
 use crate::jit::lir::LirFunction;
-use crate::jit::lir::LirReg;
+
 use crate::jit::reg_alloc::live_interval::{compute_live_intervals, LiveInterval, LiveIntervals};
 use crate::jit::reg_alloc::reg_off::RegOff;
-use std::collections::HashMap;
+
+use crate::jit::reg_alloc::reg_mapping::RegMapping;
 use std::marker::PhantomData;
 
 pub fn alloc_reg<D: RegDefinition>(func: &LirFunction) -> RegMapping<D> {
     let live_intervals = compute_live_intervals(func);
     let reg_alloc = RegAllocator::<D>::new();
     reg_alloc.linear_scan(live_intervals)
-}
-
-#[derive(Debug)]
-pub struct RegMapping<D: RegDefinition> {
-    reg_def: PhantomData<D>,
-    reg_map: HashMap<LirReg, RegOff>,
-    used_callee_saved: Vec<Register>,
-}
-
-impl<'a, D: RegDefinition> RegMapping<D> {
-    fn new() -> Self {
-        Self {
-            reg_def: Default::default(),
-            reg_map: Default::default(),
-            used_callee_saved: Default::default(),
-        }
-    }
-
-    pub fn regoff_for(&self, r: &LirReg) -> Option<&RegOff> {
-        self.reg_map.get(r)
-    }
-
-    fn insert(&mut self, k: LirReg, v: RegOff) {
-        self.reg_map.insert(k, v);
-
-        let RegOff::Reg(r)  = v else {
-            return;
-        };
-
-        if !self.used_callee_saved.contains(&r) && D::callee_saved().contains(&r) {
-            self.used_callee_saved.push(r);
-        }
-    }
-
-    pub fn callee_saved(&self) -> Vec<Register> {
-        return self.used_callee_saved.clone();
-    }
 }
 
 struct RegAllocator<D: RegDefinition> {
@@ -164,82 +129,6 @@ mod tests {
         compile_to_lir(first_func)
     }
 
-    #[test]
-    fn test_minimal_prog() {
-        let lir = create_prog(
-            "
-            fn main() {
-                let c = 1
-                c = c + 1
-                let a = 2 + 3 * c
-                let b = 2 * (a + 2)
-                a = b
-            }
-            ",
-        );
-
-        println!("LIR FUNCTION DUMP:");
-        println!("{lir}");
-        println!("------------------\n");
-
-        let allocs = alloc_reg::<TestArch>(&lir);
-
-        println!("REGISTER ALLOC DUMP:");
-        for (var, reg_off) in allocs.reg_map {
-            println!("{}: {:?}", var, reg_off);
-        }
-        println!("------------------\n");
-    }
-
-    #[test]
-    fn test_live_range() {
-        let live_intervals = vec![
-            LiveInterval {
-                var: LirReg::Var("a".to_string()),
-                start: 1,
-                end: 10,
-            },
-            LiveInterval {
-                var: LirReg::Var("b".to_string()),
-                start: 1,
-                end: 4,
-            },
-            LiveInterval {
-                var: LirReg::Var("c".to_string()),
-                start: 1,
-                end: 3,
-            },
-            LiveInterval {
-                var: LirReg::Var("d".to_string()),
-                start: 2,
-                end: 8,
-            },
-            LiveInterval {
-                var: LirReg::Var("e".to_string()),
-                start: 3,
-                end: 6,
-            },
-            LiveInterval {
-                var: LirReg::Var("f".to_string()),
-                start: 3,
-                end: 10,
-            },
-            LiveInterval {
-                var: LirReg::Var("g".to_string()),
-                start: 4,
-                end: 8,
-            },
-        ];
-
-        let reg_alloc = RegAllocator::<TestArch>::new();
-        let allocs = reg_alloc.linear_scan(live_intervals);
-        println!("REGISTER ALLOC DUMP:");
-        for (var, reg_off) in allocs.reg_map {
-            println!("{}: {:?}", var, reg_off);
-        }
-        println!("------------------\n");
-    }
-
     #[derive(Debug)]
     pub struct TestArch;
 
@@ -273,6 +162,10 @@ mod tests {
 
         fn temp3() -> Register {
             2
+        }
+
+        fn reg_as_str(reg: Register) -> String {
+            reg.to_string()
         }
     }
 }
