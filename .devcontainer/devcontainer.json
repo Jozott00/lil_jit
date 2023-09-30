@@ -1,9 +1,10 @@
 {
   "name": "LIL JIT ARM64 Dev Container",
-  "build": {
-    "dockerfile": "../Dockerfile",
-//    "platform": "linux/arm64",
-  },
+  "image": "arm64v8/rust"
+//  "build": {
+//    "dockerfile": "../Dockerfile",
+////    "platform": "linux/arm64",
+//  },
 //  "runArgs": [
 //    "--platform=linux/arm64"
 //  ],
