@@ -1,6 +1,7 @@
 use std::collections::HashMap;
+use std::hash::Hash;
 
-use crate::jit::lir::{LIR, LirFunction, LirReg};
+use crate::jit::lir::{Label, LirFunction, LirReg, LIR};
 
 /// Vector of `LiveInterval`, representing all live intervals in functions.
 pub type LiveIntervals = Vec<LiveInterval>;
@@ -34,6 +35,7 @@ pub struct LiveInterval {
 /// intervals of a function.
 pub fn compute_live_intervals(func: &LirFunction) -> LiveIntervals {
     let mut intervals = HashMap::new();
+    let mut label_pos: HashMap<&Label, usize> = HashMap::new();
 
     for (i, instr) in func.instrs().iter().enumerate() {
         match instr {
@@ -67,8 +69,24 @@ pub fn compute_live_intervals(func: &LirFunction) -> LiveIntervals {
             LIR::Return(src) => update_var(src, i, &mut intervals),
 
             // no lir regs to update
-            LIR::Label(_) => {}
-            LIR::Jump(_) => {}
+            LIR::Label(label) => {
+                label_pos.insert(label, i);
+            }
+            LIR::Jump(dst) => {
+                let Some(label_index) = label_pos.get(dst) else {
+                    continue;
+                };
+
+                let extendees: Vec<LirReg> = intervals
+                    .iter()
+                    .filter(|(k, v)| v.start <= *label_index && *label_index <= v.end)
+                    .map(|(k, v)| k.clone())
+                    .collect();
+
+                for extendee in extendees {
+                    update_var(&extendee, i, &mut intervals);
+                }
+            }
         }
     }
 
