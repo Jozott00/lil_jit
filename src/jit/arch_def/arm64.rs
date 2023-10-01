@@ -5,7 +5,8 @@ pub struct Arm64;
 
 impl RegDefinition for Arm64 {
     fn callee_saved() -> &'static [Register] {
-        const CALLEE_REGS: [Register; 10] = [19, 20, 21, 22, 23, 24, 25, 26, 27, 28];
+        // const CALLEE_REGS: [Register; 10] = [19, 20, 21, 22, 23, 24, 25, 26, 27, 28];
+        const CALLEE_REGS: [Register; 1] = [19];
         return &CALLEE_REGS;
     }
 
@@ -16,7 +17,8 @@ impl RegDefinition for Arm64 {
     }
 
     fn arg_regs() -> &'static [Register] {
-        const ARG_REGS: [Register; 8] = [0, 1, 2, 3, 4, 5, 6, 7];
+        // const ARG_REGS: [Register; 8] = [0, 1, 2, 3, 4, 5, 6, 7];
+        const ARG_REGS: [Register; 1] = [0];
         return &ARG_REGS;
     }
 

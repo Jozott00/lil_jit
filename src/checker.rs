@@ -249,6 +249,7 @@ impl<'a> NodeVisitor<'a> for Checker<'a> {
                 self.scope = self.scope.pop().unwrap();
                 return;
             }
+            StmtKind::Breakpoint(_) => {}
             StmtKind::ExprStmt(_) => {}
             StmtKind::Return(_) => {}
         }

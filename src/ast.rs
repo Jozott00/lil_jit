@@ -60,6 +60,7 @@ pub enum StmtKind<'a> {
         Box<Stmt<'a>>,
     ),
     ExprStmt(Expr<'a>),
+    Breakpoint(usize),
 
     Return(Expr<'a>),
 }

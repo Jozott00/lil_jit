@@ -6,7 +6,8 @@ use crate::ast::ExprKind::StringLiteral;
 use crate::ast::{Expr, ExprKind, FuncDec, Stmt, StmtKind};
 use crate::jit::lir::LirReg::{Tmp, Var};
 use crate::jit::lir::LIR::{
-    Assign, BinaryExpr, Call, CallText, InputArgLoad, Jump, JumpIfFalse, LoadConst, Return,
+    Assign, BinaryExpr, Breakpoint, Call, CallText, InputArgLoad, Jump, JumpIfFalse, LoadConst,
+    Return,
 };
 
 pub fn compile_to_lir<'a>(func: &'a FuncDec<'a>) -> LirFunction {
@@ -43,6 +44,9 @@ pub enum LIR {
     // dest, func_name, args
     CallText(LirReg, bool, String),
     Return(LirReg),
+
+    // debug
+    Breakpoint(usize),
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Hash, Ord, PartialOrd)]
@@ -174,6 +178,7 @@ impl<'a> LirCompiler<'a> {
                 let instr = Return(src);
                 self.instrs.push(instr)
             }
+            StmtKind::Breakpoint(line) => self.instrs.push(Breakpoint(*line)),
         }
     }
 
@@ -281,6 +286,7 @@ impl<'a> fmt::Display for LIR {
                 write!(f, "CallText(\"{}\", newline: {})", text, has_newline)
             }
             LIR::Return(reg) => write!(f, "Return({})", reg),
+            Breakpoint(line) => write!(f, "Breakpoint({})", line),
         }
     }
 }
