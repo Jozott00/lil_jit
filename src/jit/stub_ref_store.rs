@@ -40,16 +40,18 @@ impl<'a> StubRefStore<'a> {
         &mut self,
         func_name: &'a str,
     ) -> Option<HashSet<(&'a str, Vec<InstructionPointer>)>> {
-        if let Some(callers) = self.func_to_refs.remove(func_name) {
-            for (_, caller_addrs) in &callers {
-                for i in caller_addrs {
-                    self.ref_to_func.remove(&i);
-                }
-            }
-            Some(callers)
-        } else {
-            None
-        }
+        // FIXME: Temporary fix of unresolved function bug. Removing them is still the better choice
+        self.func_to_refs.get(func_name).cloned()
+        // if let Some(callers) = self.func_to_refs.remove(func_name) {
+        //     for (_, caller_addrs) in &callers {
+        //         for i in caller_addrs {
+        //             self.ref_to_func.remove(&i);
+        //         }
+        //     }
+        //     Some(callers)
+        // } else {
+        //     None
+        // }
     }
 
     /// Retrieve the function name for a given instruction pointer

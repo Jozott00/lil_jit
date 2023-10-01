@@ -4,7 +4,7 @@
 // 4. codegendata .. function specific machine code data (such as mcodebase, mcodeptr, etc.)
 
 use armoured_rust::types::InstructionPointer;
-use log::debug;
+use log::{debug, warn};
 
 use crate::ast::Program;
 use crate::jit::arch_def::arm64::Arm64;
@@ -74,7 +74,7 @@ impl<'a, D: RegDefinition> JIT<'a, D> {
         log::info!(target: "verbose", "COMPILING {} ...", funcname);
 
         if self.jit_data.compiled_funcs.contains_key(funcname) {
-            debug!("Function {funcname} was already compiled...");
+            warn!("Function {funcname} was already compiled...");
             return;
         }
 
@@ -137,7 +137,7 @@ impl<'a, D: RegDefinition> JIT<'a, D> {
                 );
 
             for code_ref in code_refs {
-                log::info!(target: "verbose", "PATCH CALL TO {:#x} AT REFERENCE {:#x}", func_ptr as usize, (code_ref as usize));
+                log::info!(target: "verbose", "PATCH CALL TO {func_name} ({:#x}) BY {caller_func} AT REFERENCE {:#x}", func_ptr as usize, (code_ref as usize));
 
                 caller_info.codegen_data.patch_at(code_ref, |cd| {
                     cd.func_call(func_ptr as usize, D::temp3());

@@ -404,7 +404,11 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
                         .str_32_imm_unsigned_offset(r, 31, (i * 4) as UImm14);
                 }
 
-                info!(target: "verbose", "EMIT CALL TO: {:#x}", func_ptr as usize);
+                if is_stub_call {
+                    info!(target: "verbose", "EMIT CALL TO STUB({:#x}) FOR {func_name} AT REF {:p}", func_ptr as usize, self.cd().code_ptr());
+                } else {
+                    info!(target: "verbose", "EMIT CALL TO {func_name} ({:#x})", func_ptr as usize);
+                }
 
                 // save the instruction count 4 instruction before actual call
                 let call_instr_count = self.cd().instr_count();
