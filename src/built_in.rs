@@ -62,6 +62,10 @@ extern "C" fn showascii_builtin(n: i32) -> i32 {
 }
 
 extern "C" fn showtext_builtin(cptr: *const c_char) -> i32 {
+    if cptr.is_null() {
+        return DEFAULT_RETURN;
+    }
+
     let c_str: &CStr = unsafe { CStr::from_ptr(cptr) };
     print(format!("{}", c_str.to_str().unwrap()));
 
@@ -69,6 +73,11 @@ extern "C" fn showtext_builtin(cptr: *const c_char) -> i32 {
 }
 
 extern "C" fn showtextln_builtin(cptr: *const c_char) -> i32 {
+    if cptr.is_null() {
+        print("\n".to_string());
+        return DEFAULT_RETURN;
+    }
+
     let c_str: &CStr = unsafe { CStr::from_ptr(cptr) };
     print(format!("{}\n", c_str.to_str().unwrap()));
     DEFAULT_RETURN
