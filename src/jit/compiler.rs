@@ -2,8 +2,7 @@ use std::collections::HashMap;
 use std::marker::PhantomData;
 
 use armoured_rust::instruction_encoding::branch_exception_system::compare_and_branch_imm::CompareAndBranchImm;
-use armoured_rust::instruction_encoding::branch_exception_system::exception_generation::ExceptionGeneration;
-use armoured_rust::instruction_encoding::branch_exception_system::unconditional_branch_immediate::{UnconditionalBranchImmediate, UnconditionalBranchImmediateWithAddress};
+use armoured_rust::instruction_encoding::branch_exception_system::unconditional_branch_immediate::UnconditionalBranchImmediate;
 use armoured_rust::instruction_encoding::branch_exception_system::unconditional_branch_register::UnconditionalBranchRegister;
 use armoured_rust::instruction_encoding::common_aliases::CommonAliases;
 use armoured_rust::instruction_encoding::data_proc_imm::add_substract_imm::AddSubtractImmediate;
@@ -13,9 +12,9 @@ use armoured_rust::instruction_encoding::data_proc_reg::data_proc_three_src::Dat
 use armoured_rust::instruction_encoding::data_proc_reg::data_proc_two_src::DataProcessingTwoSource;
 use armoured_rust::instruction_encoding::data_proc_reg::logical_shift_reg::LogicalShiftRegister;
 use armoured_rust::instruction_encoding::loads_and_stores::load_store_reg_pre_post_indexed::LoadStoreRegisterPrePostIndexed;
-use armoured_rust::types::{HW, InstructionPointer, UImm16};
 use armoured_rust::types::condition::Condition::{EQ, GE, GT, LE, LT, NE};
 use armoured_rust::types::register::WZR;
+use armoured_rust::types::{InstructionPointer, HW};
 use log::{info, warn};
 
 use crate::ast::BinaryOp;
@@ -440,7 +439,6 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
     }
 
     fn load_reg(&mut self, reg: &LirReg, alt: Register) -> Register {
-        let cd = self.cd();
         match self.find_reg_off(reg) {
             RegOff::Reg(reg) => reg,
             RegOff::Off(offset) => {

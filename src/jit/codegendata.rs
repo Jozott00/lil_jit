@@ -111,7 +111,7 @@ impl CodegenData {
     }
 
     pub fn ins_count(&self) -> usize {
-        /// The number of instructions currently stored.
+        // The number of instructions currently stored.
         // TODO: This should not be architecture dependent
         // Devide by 4 because all instructions on ARM64 are 32bit long
         return (self.mcodeptr as usize - self.mcbase as usize) / 4;
@@ -214,6 +214,7 @@ impl CodegenData {
     fn emit(&mut self, instr: Instruction) {
         if !self.in_bound() {
             warn!("Need to extend memory as no mc memory space left!");
+            panic!("No more memory to store instruction. Extending memory is currently disabled!");
             self.extend_memory().expect("Wasn't able to extend memory!")
         }
 

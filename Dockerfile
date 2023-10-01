@@ -6,5 +6,4 @@ RUN apt-get update &&  \
 
 WORKDIR /workspace
 
-RUN cargo build
-
+#RUN cargo build

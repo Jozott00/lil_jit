@@ -10,7 +10,7 @@ use crate::visitor;
 use crate::visitor::{walk_expr, walk_funcdec, walk_stmt, walk_stmt_list, NodeVisitor};
 
 pub fn check_lil(program: &Program) -> Result<(), Vec<LilError>> {
-    let mut checker = Checker::new(program);
+    let checker = Checker::new(program);
     let errors = checker.check();
     if !errors.is_empty() {
         return Err(errors);

@@ -2,8 +2,8 @@ use std::arch::global_asm;
 
 use armoured_rust::types::InstructionPointer;
 
-use crate::jit::arch_def::arm64::Arm64;
 use crate::jit::{JIT, JIT_REF};
+use crate::jit::arch_def::arm64::Arm64;
 
 // This global assembler block defines a stub for ARM64 Arch-based systems.
 // This function uses the stack to save context, triggers compilation, then restore the context.

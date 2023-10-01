@@ -9,7 +9,6 @@ use crate::jit::reg_alloc::reg_off::RegOff;
 mod live_interval;
 pub mod reg_mapping;
 pub mod reg_off;
-mod reg_repo;
 
 pub fn alloc_reg<D: RegDefinition>(func: &LirFunction) -> RegMapping<D> {
     let live_intervals = compute_live_intervals(func);
