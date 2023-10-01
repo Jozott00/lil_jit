@@ -9,6 +9,7 @@ use armoured_rust::instruction_encoding::common_aliases::CommonAliases;
 use armoured_rust::instruction_encoding::data_proc_imm::add_substract_imm::AddSubtractImmediate;
 use armoured_rust::instruction_encoding::data_proc_imm::mov_wide_imm::MovWideImmediate;
 use armoured_rust::instruction_encoding::data_proc_reg::conditional_select::ConditionalSelect;
+use armoured_rust::instruction_encoding::data_proc_reg::data_proc_three_src::DataProcessingThreeSource;
 use armoured_rust::instruction_encoding::data_proc_reg::data_proc_two_src::DataProcessingTwoSource;
 use armoured_rust::instruction_encoding::data_proc_reg::logical_shift_reg::LogicalShiftRegister;
 use armoured_rust::instruction_encoding::loads_and_stores::load_store_reg_pre_post_indexed::LoadStoreRegisterPrePostIndexed;
@@ -163,6 +164,10 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
                     }
                     BinaryOp::Divide => {
                         cd.sdiv_32(dreg, lhs, rhs);
+                    }
+                    BinaryOp::Modulo => {
+                        cd.sdiv_32(D::temp3(), lhs, rhs);
+                        cd.msub_32(dreg, D::temp3(), rhs, lhs)
                     }
                     BinaryOp::Equals => {
                         // FIXME: This code could be more readable with cmp and cset.
