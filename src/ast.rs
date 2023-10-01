@@ -98,6 +98,8 @@ pub enum BinaryOp {
     GreaterEqual,
     Less,
     LessEqual,
+    LogicalAnd,
+    LogicalOr,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -197,6 +199,8 @@ impl fmt::Display for BinaryOp {
                 BinaryOp::GreaterEqual => ">=",
                 BinaryOp::Less => "<",
                 BinaryOp::LessEqual => "<=",
+                BinaryOp::LogicalOr => "or",
+                BinaryOp::LogicalAnd => "and",
             }
         )
     }

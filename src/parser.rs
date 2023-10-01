@@ -300,6 +300,8 @@ fn parse_binary_op(input: Span) -> IResult<Span, BinaryOp> {
         value(BinaryOp::Greater, tag_no_case(">")),
         value(BinaryOp::LessEqual, tag_no_case("<=")),
         value(BinaryOp::Less, tag_no_case("<")),
+        value(BinaryOp::LogicalAnd, tag_no_case("and")),
+        value(BinaryOp::LogicalOr, tag_no_case("or")),
     ))(input)?;
 
     Ok((input, binary_op))

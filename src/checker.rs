@@ -175,7 +175,6 @@ impl<'a> NodeVisitor<'a> for Checker<'a> {
             ExprKind::StringLiteral(_) => {}
             ExprKind::FunctionCall(func_data) => {
                 let Some(arity) = self.scope.get_function(func_data.function_name.name) else {
-                    dbg!(&self.scope);
                     self.errors.push(LilError {
                         header: "Unknown Function".to_string(),
                         location: Some(func_data.function_name.location()),

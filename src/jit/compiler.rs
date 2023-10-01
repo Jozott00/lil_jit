@@ -10,6 +10,7 @@ use armoured_rust::instruction_encoding::data_proc_imm::add_substract_imm::AddSu
 use armoured_rust::instruction_encoding::data_proc_imm::mov_wide_imm::MovWideImmediate;
 use armoured_rust::instruction_encoding::data_proc_reg::conditional_select::ConditionalSelect;
 use armoured_rust::instruction_encoding::data_proc_reg::data_proc_two_src::DataProcessingTwoSource;
+use armoured_rust::instruction_encoding::data_proc_reg::logical_shift_reg::LogicalShiftRegister;
 use armoured_rust::instruction_encoding::loads_and_stores::load_store_reg_pre_post_indexed::LoadStoreRegisterPrePostIndexed;
 use armoured_rust::types::{HW, InstructionPointer, UImm16};
 use armoured_rust::types::condition::Condition::{EQ, GE, GT, LE, LT, NE};
@@ -204,6 +205,22 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
                         // needs to invert the condition.
                         cd.subs_32_reg(WZR, lhs, rhs);
                         cd.csinc_32(dreg, WZR, WZR, GT);
+                    }
+                    BinaryOp::LogicalOr => {
+                        // FIXME: This code could be more readable with cmp and cset.
+                        // This code is functionally equal but less readable, also because csinc
+                        // needs to invert the condition.
+                        cd.orr_32(dreg, lhs, rhs, None);
+                        cd.subs_32_imm(WZR, dreg, 0);
+                        cd.csinc_32(dreg, WZR, WZR, EQ);
+                    }
+                    BinaryOp::LogicalAnd => {
+                        // FIXME: This code could be more readable with cmp and cset.
+                        // This code is functionally equal but less readable, also because csinc
+                        // needs to invert the condition.
+                        cd.and_32(dreg, lhs, rhs, None);
+                        cd.subs_32_imm(WZR, dreg, 0);
+                        cd.csinc_32(dreg, WZR, WZR, EQ);
                     }
                 }
 
