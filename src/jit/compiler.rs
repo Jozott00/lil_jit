@@ -405,7 +405,15 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
                     .mem_ptr;
 
                 self.jit_data.texts.insert(text.to_string());
-                let text_ptr = self.jit_data.texts.get(text).unwrap().as_ptr() as usize;
+                let mut text_ptr = self.jit_data.texts.get(text).unwrap().as_ptr() as usize;
+
+                // FIXME: This is an ugly workaround
+                // Somtimes as_ptr returns 1 which is especially odd because 0 would at least make
+                // sense as null pointer.
+                // Since I could only trigger this with empty strings this is my workaround.
+                if text.is_empty() {
+                    text_ptr = 0;
+                }
 
                 let p1_16 = (text_ptr & 0xFFFF) as u16;
                 let p2_16 = ((text_ptr >> 16) & 0xFFFF) as u16;
