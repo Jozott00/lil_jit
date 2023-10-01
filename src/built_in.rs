@@ -17,6 +17,7 @@ lazy_static! {
         map.insert("showascii", BuiltIn::new(1, showascii_builtin as usize));
         map.insert("showtext", BuiltIn::new(1, showtext_builtin as usize));
         map.insert("showtextln", BuiltIn::new(1, showtextln_builtin as usize));
+        map.insert("showall", BuiltIn::new(10, showall10_builtin as usize));
         map
     };
 }
@@ -70,6 +71,24 @@ extern "C" fn showtext_builtin(cptr: *const c_char) -> i32 {
 extern "C" fn showtextln_builtin(cptr: *const c_char) -> i32 {
     let c_str: &CStr = unsafe { CStr::from_ptr(cptr) };
     print(format!("{}\n", c_str.to_str().unwrap()));
+    DEFAULT_RETURN
+}
+
+extern "C" fn showall10_builtin(
+    i1: i32,
+    i2: i32,
+    i3: i32,
+    i4: i32,
+    i5: i32,
+    i6: i32,
+    i7: i32,
+    i8: i32,
+    i9: i32,
+    i10: i32,
+) -> i32 {
+    print(format!(
+        "{i1}, {i2}, {i3}, {i4}, {i5}, {i6}, {i7}, {i8}, {i9}, {i10}\n"
+    ));
     DEFAULT_RETURN
 }
 

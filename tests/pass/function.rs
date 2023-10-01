@@ -93,3 +93,32 @@ fn function_multi_funcs() {
     assert_eq!(exit, 0);
     assert_eq!(stdout, "testa\ntestb\ntestc\ntestb\ntestc\ntestc\n")
 }
+
+#[test]
+fn function_many_args() {
+    let (exit, stdout) = run_passing_captured(
+        r#"
+            fn test(a, b, c, d, e, f, g, h, i, j) {
+                showall(a, b, c, d, e, f, g, h, i, j)
+                return a + b + c + d + e + f + g + h + i + j
+            }
+            
+            fn fac(n) {
+                if n <= 0: return 0
+                return n + fac(n-1)
+            }
+            
+            fn main() {
+                test(1,2,3,4,5,6,7,8,9,10)
+                let result = test(10,9,8,7,6,5,4,3,2,1)
+                if fac(10) == result: return 99
+            }
+            "#,
+    );
+
+    assert_eq!(exit, 99);
+    assert_eq!(
+        stdout,
+        "1, 2, 3, 4, 5, 6, 7, 8, 9, 10\n10, 9, 8, 7, 6, 5, 4, 3, 2, 1\n"
+    )
+}
