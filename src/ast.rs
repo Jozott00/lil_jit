@@ -101,6 +101,7 @@ pub enum BinaryOp {
     LessEqual,
     LogicalAnd,
     LogicalOr,
+    Modulo,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -202,6 +203,7 @@ impl fmt::Display for BinaryOp {
                 BinaryOp::LessEqual => "<=",
                 BinaryOp::LogicalOr => "or",
                 BinaryOp::LogicalAnd => "and",
+                BinaryOp::Modulo => "%",
             }
         )
     }
