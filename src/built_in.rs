@@ -1,8 +1,11 @@
 use std::collections::HashMap;
 use std::ffi::CStr;
+use std::io::Write;
 
 use lazy_static::lazy_static;
 use libc::c_char;
+
+use crate::{STDOUT, Writable};
 
 lazy_static! {
     pub static ref BUILTIN_FUNCS: HashMap<&'static str, BuiltIn> = {
@@ -31,33 +34,49 @@ impl BuiltIn {
 static DEFAULT_RETURN: i32 = 0;
 
 extern "C" fn cool_builtin() -> i32 {
-    println!("Cool");
+    print(format!("Cool\n"));
     DEFAULT_RETURN
 }
 
 extern "C" fn show_builtin(n: i32) -> i32 {
-    print!("{}", n);
+    print(format!("{}", n));
     DEFAULT_RETURN
 }
 
 extern "C" fn showln_builtin(n: i32) -> i32 {
-    println!("{}", n);
+    print(format!("{}\n", n));
+
     DEFAULT_RETURN
 }
 
 extern "C" fn showascii_builtin(n: i32) -> i32 {
-    print!("{}", n as u8 as char);
+    print(format!("{}", n as u8 as char));
+
     DEFAULT_RETURN
 }
 
 extern "C" fn showtext_builtin(cptr: *const c_char) -> i32 {
     let c_str: &CStr = unsafe { CStr::from_ptr(cptr) };
-    print!("{}", c_str.to_str().unwrap());
+    print(format!("{}", c_str.to_str().unwrap()));
+
     DEFAULT_RETURN
 }
 
 extern "C" fn showtextln_builtin(cptr: *const c_char) -> i32 {
     let c_str: &CStr = unsafe { CStr::from_ptr(cptr) };
-    println!("{}", c_str.to_str().unwrap());
+    print(format!("{}\n", c_str.to_str().unwrap()));
     DEFAULT_RETURN
+}
+
+fn print(str: String) {
+    let mut handle = STDOUT.lock().unwrap();
+    match &mut *handle {
+        Writable::Stdout(stdout) => {
+            write!(stdout, "{}", str).unwrap();
+            stdout.flush().unwrap();
+        }
+        Writable::Buffer(buf) => {
+            write!(buf, "{}", str).unwrap();
+        }
+    }
 }
