@@ -111,7 +111,7 @@ impl CodegenData {
     }
 
     pub fn ins_count(&self) -> usize {
-        /// The number of instructions currently stored.
+        // The number of instructions currently stored.
         // TODO: This should not be architecture dependent
         // Devide by 4 because all instructions on ARM64 are 32bit long
         return (self.mcodeptr as usize - self.mcbase as usize) / 4;

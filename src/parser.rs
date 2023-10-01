@@ -120,7 +120,7 @@ fn parse_if(input: Span) -> IResult<Span, Stmt> {
 
     let other = other.map(|(_, _, _, else_block)| Box::new(else_block));
 
-    let mut location = Location::from_span(&start).merge(&block.location());
+    let location = Location::from_span(&start).merge(&block.location());
     if let Some(other) = &other {
         location.merge(&other.location());
     }

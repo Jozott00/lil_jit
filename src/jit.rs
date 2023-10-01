@@ -3,9 +3,6 @@
 // 2. funcinfo .. higher level information of a function
 // 4. codegendata .. function specific machine code data (such as mcodebase, mcodeptr, etc.)
 
-use armoured_rust::instruction_encoding::branch_exception_system::exception_generation::ExceptionGeneration;
-use armoured_rust::instruction_encoding::branch_exception_system::unconditional_branch_immediate::UnconditionalBranchImmediateWithAddress;
-use armoured_rust::instruction_encoding::branch_exception_system::unconditional_branch_register::UnconditionalBranchRegister;
 use armoured_rust::types::InstructionPointer;
 use log::debug;
 
@@ -26,7 +23,6 @@ mod funcinfo;
 mod jitdata;
 mod lir;
 mod reg_alloc;
-mod scope;
 mod stub;
 mod stub_ref_store;
 

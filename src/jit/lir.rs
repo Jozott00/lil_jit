@@ -3,12 +3,11 @@ use std::fmt::Formatter;
 
 use crate::ast;
 use crate::ast::ExprKind::StringLiteral;
-use crate::ast::{Expr, ExprKind, FuncDec, Program, Stmt, StmtKind};
+use crate::ast::{Expr, ExprKind, FuncDec, Stmt, StmtKind};
 use crate::jit::lir::LirReg::{Tmp, Var};
 use crate::jit::lir::LIR::{
     Assign, BinaryExpr, Call, CallText, InputArgLoad, Jump, JumpIfFalse, LoadConst, Return,
 };
-use crate::visitor::NodeVisitor;
 
 pub fn compile_to_lir<'a>(func: &'a FuncDec<'a>) -> LirFunction {
     let compiler = LirCompiler::new(func);
