@@ -1,0 +1,51 @@
+fn to_fixed(int) {
+    return int * pow(2, 10)
+}
+
+fn fixed_mul(a, b) {
+    return (a * b) / pow(2, 10)
+}
+
+fn calc_mandelbrot(xi, yi) {
+    let iteration = 0
+    let x = to_fixed(0)
+    let y = to_fixed(0)
+    for ; ((fixed_mul(x, x) + fixed_mul(y, y)) <= to_fixed(2*2)) and (iteration < 128); iteration = iteration+1 {
+        let xtemp = (fixed_mul(x,x) - fixed_mul(y,y)) + xi
+        y = (2 * fixed_mul(x, y)) + yi
+        x = xtemp
+    }
+    return iteration
+}
+
+fn print_iter(n) {
+    if n == 128 {
+        showtext(" ")
+        return 0
+    }
+    show(n % 9)
+}
+
+fn main() {
+    let xstart = to_fixed(0-2)
+    let xend = to_fixed(1)
+    let ystart = to_fixed(1)
+    let yend = to_fixed(0-1)
+    let rows = 28
+    let columns = 90
+
+    let xstep = (xend - xstart) / columns
+    let ystep = (yend - ystart) / rows
+
+    // FIXME: we could offset by half teh step to make it symetrical
+    for let r = 0; r < rows; r = r+1 {
+        for let c = 0; c < columns; c = c+1 {
+            let x = xstart + (c * xstep)
+            let y = ystart + (r * ystep)
+            let iter = calc_mandelbrot(x, y)
+            print_iter(iter)
+        }
+        // FIXME: The implementation should allow empty strings
+        showtextln(" ")
+    }
+}

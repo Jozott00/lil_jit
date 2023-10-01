@@ -5,11 +5,12 @@ use std::io::Write;
 use lazy_static::lazy_static;
 use libc::c_char;
 
-use crate::{STDOUT, Writable};
+use crate::{Writable, STDOUT};
 
 lazy_static! {
     pub static ref BUILTIN_FUNCS: HashMap<&'static str, BuiltIn> = {
         let mut map = HashMap::new();
+        map.insert("pow", BuiltIn::new(2, pow_builtin as usize));
         map.insert("cool", BuiltIn::new(0, cool_builtin as usize));
         map.insert("show", BuiltIn::new(1, show_builtin as usize));
         map.insert("showln", BuiltIn::new(1, showln_builtin as usize));
@@ -32,6 +33,10 @@ impl BuiltIn {
 }
 
 static DEFAULT_RETURN: i32 = 0;
+
+extern "C" fn pow_builtin(a: i32, b: i32) -> i32 {
+    a.pow(b as u32)
+}
 
 extern "C" fn cool_builtin() -> i32 {
     print(format!("Cool\n"));
