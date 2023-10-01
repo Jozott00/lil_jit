@@ -10,10 +10,14 @@ use armoured_rust::instruction_encoding::data_proc_imm::mov_wide_imm::MovWideImm
 use armoured_rust::instruction_encoding::data_proc_reg::conditional_select::ConditionalSelect;
 use armoured_rust::instruction_encoding::data_proc_reg::data_proc_two_src::DataProcessingTwoSource;
 use armoured_rust::instruction_encoding::data_proc_reg::logical_shift_reg::LogicalShiftRegister;
+use armoured_rust::instruction_encoding::loads_and_stores::load_store_reg_pair_post_indexed::LoadStoreRegisterPairPostIndexed;
+use armoured_rust::instruction_encoding::loads_and_stores::load_store_reg_pair_pre_indexed::LoadStoreRegisterPairPreIndexed;
 use armoured_rust::instruction_encoding::loads_and_stores::load_store_reg_pre_post_indexed::LoadStoreRegisterPrePostIndexed;
+use armoured_rust::instruction_encoding::loads_and_stores::load_store_reg_unscaled_imm::LoadStoreRegisterUnscaledImmediate;
+
 use armoured_rust::types::condition::Condition::{EQ, GE, GT, LE, LT, NE};
 use armoured_rust::types::register::WZR;
-use armoured_rust::types::{InstructionPointer, HW};
+use armoured_rust::types::{Imm12, Imm9, InstructionPointer, HW};
 use log::{info, warn};
 
 use crate::ast::BinaryOp;
@@ -91,11 +95,6 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
     }
 
     fn compile_prolog(&mut self) {
-        // self.cd().brk(0);
-
-        // save x30 (link) on stack
-        self.cd().str_64_imm_pre_index(30, 31, -16);
-
         // save callee saved registers
         // TODO: Be careful: if allocated registers are caller saved, this might result in collisions -> argument variables must not get caller saved registers
         for r in &self.code_info.func_info.reg_alloc().callee_saved() {
@@ -104,15 +103,21 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
             self.cd().str_64_imm_pre_index(*r, 31, -16);
         }
 
-        // save framepointer on the stack
-        self.cd().str_64_imm_pre_index(29, 31, -16);
+        // save save framepointer (lower addr) and x30 (link, higher addr) on the stack
+        self.cd().stp_64_pre_index(29, 30, 31, -16);
 
         // Set the framepointer on to the current stack pointer
         self.cd().add_64_imm(29, 31, 0);
+
+        let number_spills = self.code_info.func_info.reg_alloc().number_of_spills();
+        let spill_space = 4 * number_spills;
+        // round to nearest multiply of 16
+        let stack_space_needed = (spill_space + 15) & !15;
+        self.cd().sub_64_imm(31, 31, stack_space_needed as Imm12);
     }
 
-    // x30 // link
     // callee saved registers
+    // x30 // link
     // old_fp <- fp
     // stack variables
 
@@ -120,8 +125,9 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
         // sp <- fp
         self.cd().add_64_imm(31, 29, 0);
 
-        // fp <- pop old_fp
-        self.cd().ldr_64_imm_post_index(29, 31, 16);
+        // (fp, link) <- pop (old_fp, link)
+        // restore old fp and x30 (link) from stack
+        self.cd().ldp_64_post_index(29, 30, 31, 16);
 
         // restore callee saved registers
         for r in self
@@ -135,8 +141,6 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
             self.cd().ldr_64_imm_post_index(*r, 31, 16);
         }
 
-        // restore x30 (link) from stack
-        self.cd().ldr_64_imm_post_index(30, 31, 16);
         self.cd().ret()
     }
 
@@ -437,8 +441,8 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
         match self.find_reg_off(reg) {
             RegOff::Reg(reg) => reg,
             RegOff::Off(offset) => {
-                todo!("Load value from offset in alt register");
-
+                let fp_offset = -(offset as Imm9) - 0x8; // offset + 8byte frame_pointer
+                self.cd().ldur_32(alt, 29, fp_offset);
                 return alt;
             }
         }
@@ -463,7 +467,8 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
                 self.cd().mov_64_reg(dst, reg);
             }
             RegOff::Off(offset) => {
-                todo!("Store reg at offset")
+                let fp_offset = -(offset as Imm9) - 0x8; // offset + 8byte frame_pointer
+                self.cd().stur_32(reg, 29, fp_offset);
             }
         }
     }
