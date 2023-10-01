@@ -8,7 +8,7 @@ use nom::sequence::tuple;
 use nom::IResult;
 use nom_locate::LocatedSpan;
 
-use crate::ast::StmtKind::{Assignment, ExprStmt, For, If, Return};
+use crate::ast::StmtKind::{Assignment, Breakpoint, ExprStmt, For, If, Return};
 use crate::ast::{
     AstNode, BinaryOp, Expr, ExprKind, FuncDec, FunctionCallData, Identifier, Program, Stmt,
     StmtKind,
@@ -81,6 +81,7 @@ fn parse_function_declaration(input: Span) -> IResult<Span, FuncDec> {
 fn parse_stmt(input: Span) -> IResult<Span, Stmt> {
     // newline.
     let (input, stmt) = (alt((
+        parse_breakpoint,
         parse_assignment,
         parse_if,
         parse_for,
@@ -175,6 +176,22 @@ fn parse_return(input: Span) -> IResult<Span, Stmt> {
         input,
         Stmt {
             kind: Return(expr),
+            location,
+        },
+    ))
+}
+
+// TODO: Fix!
+fn parse_breakpoint(input: Span) -> IResult<Span, Stmt> {
+    let (input, _) = multispace0(input)?;
+    let (input, b) = tag("!!break")(input)?;
+    let location = Location::from_span(&b);
+    let (input, _) = multispace0(input)?;
+
+    Ok((
+        input,
+        Stmt {
+            kind: Breakpoint(b.location_line() as usize),
             location,
         },
     ))

@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::marker::PhantomData;
 
 use armoured_rust::instruction_encoding::branch_exception_system::compare_and_branch_imm::CompareAndBranchImm;
+use armoured_rust::instruction_encoding::branch_exception_system::exception_generation::ExceptionGeneration;
 use armoured_rust::instruction_encoding::branch_exception_system::unconditional_branch_immediate::UnconditionalBranchImmediate;
 use armoured_rust::instruction_encoding::branch_exception_system::unconditional_branch_register::UnconditionalBranchRegister;
 use armoured_rust::instruction_encoding::common_aliases::CommonAliases;
@@ -11,10 +12,15 @@ use armoured_rust::instruction_encoding::data_proc_reg::conditional_select::Cond
 use armoured_rust::instruction_encoding::data_proc_reg::data_proc_three_src::DataProcessingThreeSource;
 use armoured_rust::instruction_encoding::data_proc_reg::data_proc_two_src::DataProcessingTwoSource;
 use armoured_rust::instruction_encoding::data_proc_reg::logical_shift_reg::LogicalShiftRegister;
+use armoured_rust::instruction_encoding::loads_and_stores::load_store_reg_pair_post_indexed::LoadStoreRegisterPairPostIndexed;
+use armoured_rust::instruction_encoding::loads_and_stores::load_store_reg_pair_pre_indexed::LoadStoreRegisterPairPreIndexed;
 use armoured_rust::instruction_encoding::loads_and_stores::load_store_reg_pre_post_indexed::LoadStoreRegisterPrePostIndexed;
+use armoured_rust::instruction_encoding::loads_and_stores::load_store_reg_unscaled_imm::LoadStoreRegisterUnscaledImmediate;
+use armoured_rust::instruction_encoding::loads_and_stores::load_store_register_unsigned_imm::LoadStoreRegisterUnsignedImmediate;
+
 use armoured_rust::types::condition::Condition::{EQ, GE, GT, LE, LT, NE};
 use armoured_rust::types::register::WZR;
-use armoured_rust::types::{InstructionPointer, HW};
+use armoured_rust::types::{Imm12, Imm9, InstructionPointer, UImm12, UImm14, UImm16, HW};
 use log::{info, warn};
 
 use crate::ast::BinaryOp;
@@ -47,6 +53,7 @@ struct Compiler<'a, 'b, D: RegDefinition> {
     label_indices: HashMap<Label, usize>,
     patch_requests: HashMap<Label, Vec<(LIR, InstructionPointer)>>,
     stub_refs: HashMap<&'a str, Vec<InstrCount>>,
+    spilled_arg_offset: usize, // offset from fp to first arg
 }
 
 impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
@@ -60,6 +67,7 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
             label_indices: Default::default(),
             patch_requests: Default::default(),
             stub_refs: Default::default(),
+            spilled_arg_offset: 0,
         }
     }
     fn compile(mut self) -> CodeInfo<'a, D> {
@@ -92,28 +100,38 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
     }
 
     fn compile_prolog(&mut self) {
-        // self.cd().brk(0);
-
-        // save x30 (link) on stack
-        self.cd().str_64_imm_pre_index(30, 31, -16);
-
         // save callee saved registers
         // TODO: Be careful: if allocated registers are caller saved, this might result in collisions -> argument variables must not get caller saved registers
-        for r in &self.code_info.func_info.reg_alloc().callee_saved() {
+        let callee_saved = &self.code_info.func_info.reg_alloc().callee_saved();
+        for r in callee_saved {
             // FIXME: The 16 byte offset is for allignment but packing them together
             // and fixing the allignment later would be leaner.
             self.cd().str_64_imm_pre_index(*r, 31, -16);
         }
 
-        // save framepointer on the stack
-        self.cd().str_64_imm_pre_index(29, 31, -16);
+        // save save framepointer (lower addr) and x30 (link, higher addr) on the stack
+        self.cd().stp_64_pre_index(29, 30, 31, -16);
+
+        // set spilled argument offset
+        // TODO: Probably changing with better handling of callee saved registers
+        // fp + link + (callee_saved * 16)
+        self.spilled_arg_offset = 8 + 8 + (callee_saved.len() * 16);
 
         // Set the framepointer on to the current stack pointer
         self.cd().add_64_imm(29, 31, 0);
+
+        // allocate local variables spills on stack
+        let number_spills = self.code_info.func_info.reg_alloc().number_of_spills();
+        let spill_space = 4 * number_spills;
+        // round to nearest multiply of 16
+        let stack_space_needed = (spill_space + 15) & !15;
+        if stack_space_needed > 0 {
+            self.cd().sub_64_imm(31, 31, stack_space_needed as Imm12);
+        }
     }
 
-    // x30 // link
     // callee saved registers
+    // x30 // link
     // old_fp <- fp
     // stack variables
 
@@ -121,8 +139,9 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
         // sp <- fp
         self.cd().add_64_imm(31, 29, 0);
 
-        // fp <- pop old_fp
-        self.cd().ldr_64_imm_post_index(29, 31, 16);
+        // (fp, link) <- pop (old_fp, link)
+        // restore old fp and x30 (link) from stack
+        self.cd().ldp_64_post_index(29, 30, 31, 16);
 
         // restore callee saved registers
         for r in self
@@ -136,8 +155,6 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
             self.cd().ldr_64_imm_post_index(*r, 31, 16);
         }
 
-        // restore x30 (link) from stack
-        self.cd().ldr_64_imm_post_index(30, 31, 16);
         self.cd().ret()
     }
 
@@ -233,12 +250,18 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
             }
             LIR::InputArgLoad(dest, i) => {
                 let dreg = self.get_dst(dest, D::temp1());
-                // TODO: Check if register to load is spilled and handle it!
-                assert!(
-                    D::arg_regs().len() > *i,
-                    "argument would be spilled! spilling isnt implemented yet!"
-                );
-                self.cd().mov_64_reg(dreg, *i as Register);
+
+                let arg_regs = D::arg_regs().len();
+
+                if *i < arg_regs {
+                    self.cd().mov_64_reg(dreg, *i as Register);
+                } else {
+                    // offset from frame_pointer
+                    let arg_offset = (i - arg_regs) * 4;
+                    let fp_offset = self.spilled_arg_offset + arg_offset;
+                    self.cd()
+                        .ldr_32_imm_unsigned_offset(dreg, 29, fp_offset as UImm12);
+                }
                 self.store_dst(dest, dreg);
             }
             LIR::Assign(dest, src) => {
@@ -358,11 +381,27 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
                     }
                 };
 
+                // split args in args stored in registers and args spilled on stack
+                let (args_reg, args_spilled) = args.split_at(args.len().min(D::arg_regs().len()));
+
                 // move arg registers to argument passing registers
-                for (i, arg_reg) in args.iter().enumerate() {
+                for (i, arg_reg) in args_reg.iter().enumerate() {
                     let r = self.load_reg(arg_reg, i as Register);
                     self.mov_reg(i as Register, r)
-                    // TODO: handle spilled arguments
+                }
+
+                // calculate required stack space (with alignment)
+                let space_for_args = args_spilled.len() * 4;
+                let aligned_space_needed = (space_for_args + 15) & !15;
+                if aligned_space_needed > 0 {
+                    self.cd().sub_64_imm(31, 31, aligned_space_needed as Imm12);
+                }
+
+                // store args that are passed via stack
+                for (i, arg_reg) in args_spilled.iter().enumerate() {
+                    let r = self.load_reg(arg_reg, D::temp3());
+                    self.cd()
+                        .str_32_imm_unsigned_offset(r, 31, (i * 4) as UImm14);
                 }
 
                 info!(target: "verbose", "EMIT CALL TO: {:#x}", func_ptr as usize);
@@ -370,8 +409,13 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
                 // save the instruction count 4 instruction before actual call
                 let call_instr_count = self.cd().instr_count();
                 self.cd().func_call(func_ptr as usize, D::temp3());
-
                 self.mov_reg(dreg, D::ret_reg());
+
+                // pop passed arguments from stack
+                if aligned_space_needed > 0 {
+                    self.cd().add_64_imm(31, 31, aligned_space_needed as Imm12);
+                }
+
                 self.store_dst(dest, dreg);
 
                 // if we call a stub, add add function name together with instructionCounter to
@@ -437,6 +481,7 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
                 cd.mov_64_reg(0, src);
                 self.compile_epilog()
             }
+            LIR::Breakpoint(line) => self.cd().brk(*line as UImm16),
         }
     }
 
@@ -450,8 +495,8 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
         match self.find_reg_off(reg) {
             RegOff::Reg(reg) => reg,
             RegOff::Off(offset) => {
-                todo!("Load value from offset in alt register");
-
+                let fp_offset = -(offset as Imm9) - 0x8; // offset + 8byte frame_pointer
+                self.cd().ldur_32(alt, 29, fp_offset);
                 return alt;
             }
         }
@@ -476,7 +521,8 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
                 self.cd().mov_64_reg(dst, reg);
             }
             RegOff::Off(offset) => {
-                todo!("Store reg at offset")
+                let fp_offset = -(offset as Imm9) - 0x8; // offset + 8byte frame_pointer
+                self.cd().stur_32(reg, 29, fp_offset);
             }
         }
     }

@@ -41,6 +41,13 @@ impl<'a, D: RegDefinition> RegMapping<D> {
     pub fn callee_saved(&self) -> Vec<Register> {
         return self.used_callee_saved.clone();
     }
+
+    pub fn number_of_spills(&self) -> usize {
+        self.reg_map
+            .iter()
+            .filter(|(k, v)| matches!(v, RegOff::Off(_)))
+            .count()
+    }
 }
 
 impl<D: RegDefinition> Display for RegMapping<D> {

@@ -87,6 +87,7 @@ pub fn compute_live_intervals(func: &LirFunction) -> LiveIntervals {
                     update_var(&extendee, i, &mut intervals);
                 }
             }
+            LIR::Breakpoint(_) => {}
         }
     }
 

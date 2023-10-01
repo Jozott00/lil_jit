@@ -48,6 +48,7 @@ pub fn walk_stmt<'a, V: NodeVisitor<'a>>(visitor: &mut V, node: &'a Stmt) {
         StmtKind::ExprStmt(expr) => visitor.visit_expr(expr),
         StmtKind::Return(expr) => visitor.visit_expr(expr),
         StmtKind::Block(exprs) => walk_stmt_list(visitor, exprs),
+        StmtKind::Breakpoint(_) => {}
     }
 }
 
