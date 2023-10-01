@@ -299,7 +299,7 @@ impl fmt::Display for LirFunction {
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::BinaryOp;
+    use crate::ast::{BinaryOp, Program};
     use crate::checker::check_lil;
     use crate::parser::parse_lil_program;
 

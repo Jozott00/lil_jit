@@ -1,5 +1,3 @@
-use crate::run_body_captured;
-
 #[test]
 fn builtin_cool() {
     let (exit, stdout) = run_body_captured(

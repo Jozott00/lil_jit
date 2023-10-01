@@ -1,5 +1,3 @@
-use crate::run_passing;
-
 #[test]
 fn minimal() {
     let exit = run_passing(

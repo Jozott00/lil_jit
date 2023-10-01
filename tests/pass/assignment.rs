@@ -1,5 +1,3 @@
-use crate::run_body;
-
 #[test]
 fn assignment_single() {
     let exit = run_body(

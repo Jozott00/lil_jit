@@ -1,28 +1,38 @@
+include!("pass/minimal.rs");
+include!("pass/binary_ops.rs");
+include!("pass/assignment.rs");
+include!("pass/for_loop.rs");
+include!("pass/builtin_calls.rs");
+include!("pass/function.rs");
+
 use std::io::{Cursor, Read};
 use std::sync::Mutex;
 
 use lazy_static::lazy_static;
-
 use lil_jit::{run, Writable, STDOUT};
 
-mod pass {
-    include!("pass/minimal.rs");
-    include!("pass/binary_ops.rs");
-    include!("pass/assignment.rs");
-    include!("pass/for_loop.rs");
-    include!("pass/builtin_calls.rs");
+lazy_static! {
+    static ref TEST_LOCK: Mutex<()> = Mutex::new(());
 }
 
-lazy_static! {
-    static ref CAPTURE_LOCK: Mutex<()> = Mutex::new(());
+fn setup<T, F: FnOnce() -> T>(f: F) -> T {
+    // Acquire the test lock, handling a poisoned lock if necessary
+    let _capture_guard = match TEST_LOCK.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+
+    // let _ = simple_logger::init();
+
+    f()
 }
 
 pub fn run_passing(code: &str) -> i32 {
-    run(code).expect("Test shouldn't fail")
+    setup(|| run(code).expect("Test shouldn't fail"))
 }
 
 pub fn run_passing_captured(code: &str) -> (i32, String) {
-    capture_stdout(|| run(code).expect("Test shouldn't fail"))
+    setup(|| capture_stdout(|| run(code).expect("Test shouldn't fail")))
 }
 
 fn run_body(code: &str) -> i32 {
@@ -55,12 +65,6 @@ fn run_body_captured(code: &str) -> (i32, String) {
 /// capture all program output. As multiple parallel tests lead to
 /// concurrency issues, those are synchronized via the `CAPTURE_LOCK`.
 pub fn capture_stdout<T, F: FnOnce() -> T>(f: F) -> (T, String) {
-    // Acquire the capture lock, handling a poisoned lock if necessary
-    let _capture_guard = match CAPTURE_LOCK.lock() {
-        Ok(guard) => guard,
-        Err(poisoned) => poisoned.into_inner(),
-    };
-
     // Create a new in-memory buffer
     let buffer = Cursor::new(Vec::new());
 

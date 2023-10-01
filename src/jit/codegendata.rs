@@ -214,6 +214,7 @@ impl CodegenData {
     fn emit(&mut self, instr: Instruction) {
         if !self.in_bound() {
             warn!("Need to extend memory as no mc memory space left!");
+            panic!("No more memory to store instruction. Extending memory is currently disabled!");
             self.extend_memory().expect("Wasn't able to extend memory!")
         }
 

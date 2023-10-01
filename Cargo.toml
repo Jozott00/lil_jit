@@ -14,3 +14,4 @@ log = "0.4.20"
 clap = { version = "4.4.4", features = ["derive"] }
 lazy_static = "1.4.0"
 bad64 = "0.6.0"
+simple_logger = "4.2.0"
