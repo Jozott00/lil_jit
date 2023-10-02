@@ -98,7 +98,14 @@ impl<D: RegDefinition> Display for RegMapping<D> {
             .collect::<Vec<String>>()
             .join(", ");
 
-        write!(f, "All used registers: {used_reg_string}")?;
+        write!(f, "All used registers: {used_reg_string}\n")?;
+
+        let spilled_count = self
+            .reg_map
+            .values()
+            .filter(|v| matches!(v, RegOff::Off(_)))
+            .count();
+        write!(f, "Number of spilled local variables: {spilled_count}")?;
 
         Ok(())
     }
