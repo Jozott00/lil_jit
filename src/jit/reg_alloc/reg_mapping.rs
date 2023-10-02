@@ -45,7 +45,7 @@ impl<'a, D: RegDefinition> RegMapping<D> {
     pub fn number_of_spills(&self) -> usize {
         self.reg_map
             .iter()
-            .filter(|(k, v)| matches!(v, RegOff::Off(_)))
+            .filter(|(_, v)| matches!(v, RegOff::Off(_)))
             .count()
     }
 }

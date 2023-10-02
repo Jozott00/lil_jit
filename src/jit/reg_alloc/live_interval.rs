@@ -79,8 +79,8 @@ pub fn compute_live_intervals(func: &LirFunction) -> LiveIntervals {
 
                 let extendees: Vec<LirReg> = intervals
                     .iter()
-                    .filter(|(k, v)| v.start <= *label_index && *label_index <= v.end)
-                    .map(|(k, v)| k.clone())
+                    .filter(|(_k, v)| v.start <= *label_index && *label_index <= v.end)
+                    .map(|(k, _v)| k.clone())
                     .collect();
 
                 for extendee in extendees {

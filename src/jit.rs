@@ -4,7 +4,6 @@
 // 4. codegendata .. function specific machine code data (such as mcodebase, mcodeptr, etc.)
 
 use armoured_rust::types::InstructionPointer;
-use log::{debug, warn};
 
 use crate::ast::Program;
 use crate::jit::arch_def::arm64::Arm64;
@@ -74,7 +73,7 @@ impl<'a, D: RegDefinition> JIT<'a, D> {
         log::info!(target: "verbose", "COMPILING {} ...", funcname);
 
         if self.jit_data.compiled_funcs.contains_key(funcname) {
-            warn!("Function {funcname} was already compiled...");
+            log::info!(target: "verbose", "WARN: Function {funcname} was already compiled...");
             return;
         }
 

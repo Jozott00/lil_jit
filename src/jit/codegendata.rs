@@ -67,6 +67,7 @@ use libc::{MAP_ANON, MAP_PRIVATE, PROT_READ, PROT_WRITE};
 use log::{info, warn};
 
 /// Memory extension multiplier, used in CodegenData::extend_memory
+#[allow(dead_code)]
 const MEMORY_ALLOCATION_MULTIPLIER: usize = 2;
 /// Maximum offset of instruction pointer relative jumps
 const MAX_OFFSET: usize = i32::MAX as usize;
@@ -185,6 +186,7 @@ impl CodegenData {
     }
 
     /// Extends the allocated memory block to twice its current size, preserving the existing machine code.
+    #[allow(unused)]
     fn extend_memory(&mut self) -> Result<(), std::io::Error> {
         let new_size = self.len * MEMORY_ALLOCATION_MULTIPLIER;
         let new_mem = alloc_mem(new_size)?;
@@ -215,7 +217,7 @@ impl CodegenData {
         if !self.in_bound() {
             warn!("Need to extend memory as no mc memory space left!");
             panic!("No more memory to store instruction. Extending memory is currently disabled!");
-            self.extend_memory().expect("Wasn't able to extend memory!")
+            // self.extend_memory().expect("Wasn't able to extend memory!")
         }
 
         unsafe {
