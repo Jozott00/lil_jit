@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter};
 use std::marker::PhantomData;
 
@@ -70,13 +70,35 @@ impl<D: RegDefinition> Display for RegMapping<D> {
 
         write!(
             f,
-            "Used Callee-Saved Registers: {}",
+            "Used Callee-Saved Registers: {}\n",
             self.callee_saved()
                 .iter()
                 .map(|r| D::reg_as_str(*r))
                 .collect::<Vec<String>>()
                 .join(", ")
         )?;
+
+        let mut used_registers = self
+            .reg_map
+            .values()
+            .filter_map(|v| match v {
+                RegOff::Reg(reg) => Some(reg),
+                _ => None,
+            })
+            .copied()
+            .collect::<HashSet<Register>>()
+            .into_iter()
+            .collect::<Vec<Register>>();
+
+        used_registers.sort();
+
+        let used_reg_string = used_registers
+            .into_iter()
+            .map(|r| D::reg_as_str(r))
+            .collect::<Vec<String>>()
+            .join(", ");
+
+        write!(f, "All used registers: {used_reg_string}")?;
 
         Ok(())
     }
