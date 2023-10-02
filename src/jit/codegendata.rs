@@ -544,7 +544,7 @@ mod tests {
         let val: u8 = unsafe { ptr::read(ptr_between as *const u8) };
         assert_eq!(val, 234);
 
-        cd.extend_memory();
+        cd.extend_memory().unwrap();
 
         let val: u8 = unsafe { ptr::read(cd.mcbase as *const u8) };
         assert_eq!(val, 123);

@@ -1,4 +1,5 @@
 use std::marker::PhantomData;
+use std::ptr;
 
 use crate::jit::arch_def::{RegDefinition, Register};
 use crate::jit::lir::LirFunction;
@@ -16,23 +17,39 @@ pub fn alloc_reg<D: RegDefinition>(func: &LirFunction) -> RegMapping<D> {
     reg_alloc.linear_scan(live_intervals)
 }
 
+/// - 0: The pool where the register is from
+/// - 1: The register popped from the pool
+type InternalRegister = (RegPoolOption, Register);
+
+enum RegPoolOption {
+    CalleeSaved,
+    SaveCallerSaved,
+}
+
 struct RegAllocator<D: RegDefinition> {
     reg_def: PhantomData<D>, // to be able to use the generic static type RegDefinition
-    active: Vec<(Register, LiveInterval)>,
+    active: Vec<(InternalRegister, LiveInterval)>,
     finalized: RegMapping<D>,
-    pool: Vec<Register>,
+    pool_callee_saved: Vec<Register>,
+    pool_save_caller_saved: Vec<Register>, // caller saved registers that are not argument registers (so no conflicts for args and params)
     spill_offset: usize,
 }
 
 impl<D: RegDefinition> RegAllocator<D> {
     fn new() -> Self {
-        let pool = D::callee_saved().to_vec(); // TODO: Later use also caller saved registers
+        let pool_callee_saved = D::callee_saved().to_vec(); // TODO: Later use also caller saved registers
+        let pool_save_caller_saved = D::caller_saved()
+            .iter()
+            .filter(|e| !D::arg_regs().contains(e))
+            .copied()
+            .collect();
 
         Self {
             reg_def: Default::default(),
             active: Vec::new(),
             finalized: RegMapping::new(),
-            pool,
+            pool_callee_saved,
+            pool_save_caller_saved,
             spill_offset: 0,
         }
     }
@@ -44,14 +61,14 @@ impl<D: RegDefinition> RegAllocator<D> {
         for li in live_intervals {
             self.expire_old_intervals(&li);
 
-            if let Some(reg) = self.pool.pop() {
+            if let Some(reg) = self.pop_reg_from_pool(&li) {
                 self.active_new_interval(li, reg);
             } else {
                 self.spill_at_interval(li)
             }
         }
 
-        for (reg, li) in self.active {
+        for ((_, reg), li) in self.active {
             self.finalized.insert(li.var, RegOff::Reg(reg));
         }
 
@@ -66,11 +83,11 @@ impl<D: RegDefinition> RegAllocator<D> {
 
             if li.end <= current_interval.start {
                 // Remove the element from active and add it to finalized
-                let (reg, fli) = self.active.remove(i);
+                let (internal @ (_, reg), fli) = self.active.remove(i);
                 self.finalized.insert(fli.var, RegOff::Reg(reg));
 
                 // Push the register back to the pool
-                self.pool.push(reg);
+                self.push_reg_to_pool(internal);
             } else {
                 // TODO: Maybe just return
                 i += 1;
@@ -78,7 +95,7 @@ impl<D: RegDefinition> RegAllocator<D> {
         }
     }
 
-    fn active_new_interval(&mut self, interval: LiveInterval, reg: Register) {
+    fn active_new_interval(&mut self, interval: LiveInterval, reg: InternalRegister) {
         self.active.push((reg, interval));
     }
 
@@ -104,6 +121,39 @@ impl<D: RegDefinition> RegAllocator<D> {
         }
     }
 
+    /// Pops register from register pool.
+    ///
+    /// If live interval doesnt contain register call,
+    /// save caller saved register were preferred.
+    /// Otherwise only callee saved register may be used.
+    fn pop_reg_from_pool(&mut self, live_interval: &LiveInterval) -> Option<InternalRegister> {
+        if live_interval.contains_func_call {
+            self.pool_callee_saved
+                .pop()
+                .map(|r| (RegPoolOption::CalleeSaved, r))
+        } else {
+            self.pool_save_caller_saved
+                .pop()
+                .map(|r| (RegPoolOption::SaveCallerSaved, r))
+                .or_else(|| {
+                    self.pool_callee_saved
+                        .pop()
+                        .map(|r| (RegPoolOption::CalleeSaved, r))
+                })
+        }
+    }
+
+    fn push_reg_to_pool(&mut self, (pool, reg): InternalRegister) {
+        match pool {
+            RegPoolOption::CalleeSaved => {
+                self.pool_callee_saved.push(reg);
+            }
+            RegPoolOption::SaveCallerSaved => {
+                self.pool_save_caller_saved.push(reg);
+            }
+        }
+    }
+
     fn next_spill_offset(&mut self) -> usize {
         let off = self.spill_offset;
         self.spill_offset += 4;
@@ -121,6 +171,7 @@ mod tests {
 
     use super::*;
 
+    #[allow(dead_code)]
     fn create_prog(str: &str) -> LirFunction {
         let prog = parse_lil_program(str).expect("Couldn't parse program");
         let err = check_lil(&prog);

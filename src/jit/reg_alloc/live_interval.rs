@@ -22,6 +22,7 @@ pub struct LiveInterval {
     pub start: usize,
     pub end: usize,
     // TODO: Maybe check if contains function call?
+    pub contains_func_call: bool,
 }
 
 /// # compute_live_intervals
@@ -36,37 +37,41 @@ pub struct LiveInterval {
 pub fn compute_live_intervals(func: &LirFunction) -> LiveIntervals {
     let mut intervals = HashMap::new();
     let mut label_pos: HashMap<&Label, usize> = HashMap::new();
+    let instr_count = func.instrs().len();
+    let mut call_positions = vec![false; instr_count];
 
     for (i, instr) in func.instrs().iter().enumerate() {
         match instr {
             LIR::BinaryExpr(dest, _, lhs, rhs) => {
-                update_var(dest, i, &mut intervals);
-                update_var(lhs, i, &mut intervals);
-                update_var(rhs, i, &mut intervals);
+                update_var(dest, i, &call_positions, &mut intervals);
+                update_var(lhs, i, &call_positions, &mut intervals);
+                update_var(rhs, i, &call_positions, &mut intervals);
             }
             LIR::InputArgLoad(dest, _) => {
-                update_var(dest, i, &mut intervals);
+                update_var(dest, i, &call_positions, &mut intervals);
             }
             LIR::Assign(dest, src) => {
-                update_var(dest, i, &mut intervals);
-                update_var(src, i, &mut intervals);
+                update_var(dest, i, &call_positions, &mut intervals);
+                update_var(src, i, &call_positions, &mut intervals);
             }
             LIR::LoadConst(dest, _) => {
-                update_var(dest, i, &mut intervals);
+                update_var(dest, i, &call_positions, &mut intervals);
             }
             LIR::JumpIfFalse(src, _) => {
-                update_var(src, i, &mut intervals);
+                update_var(src, i, &call_positions, &mut intervals);
             }
             LIR::Call(dest, _, args) => {
-                update_var(dest, i, &mut intervals);
+                update_var(dest, i, &call_positions, &mut intervals);
                 for a in args {
-                    update_var(a, i, &mut intervals);
+                    update_var(a, i, &call_positions, &mut intervals);
                 }
+                call_positions[i] = true;
             }
             LIR::CallText(dest, _, _) => {
-                update_var(dest, i, &mut intervals);
+                update_var(dest, i, &call_positions, &mut intervals);
+                call_positions[i] = true;
             }
-            LIR::Return(src) => update_var(src, i, &mut intervals),
+            LIR::Return(src) => update_var(src, i, &call_positions, &mut intervals),
 
             // no lir regs to update
             LIR::Label(label) => {
@@ -84,7 +89,7 @@ pub fn compute_live_intervals(func: &LirFunction) -> LiveIntervals {
                     .collect();
 
                 for extendee in extendees {
-                    update_var(&extendee, i, &mut intervals);
+                    update_var(&extendee, i, &call_positions, &mut intervals);
                 }
             }
             LIR::Breakpoint(_) => {}
@@ -104,8 +109,13 @@ pub fn compute_live_intervals(func: &LirFunction) -> LiveIntervals {
 ///
 /// # Outcome
 /// If the variable is already in 'intervals', it updates the end of the interval with the current position.
-/// If the variable is not in 'intervals', it inserts a new LiveInterval beign at the current position and ends at the same.
-fn update_var(var: &LirReg, pos: usize, intervals: &mut HashMap<LirReg, LiveInterval>) {
+/// If the variable is not in 'intervals', it inserts a new LiveInterval beginning and ending at the current position.
+fn update_var(
+    var: &LirReg,
+    pos: usize,
+    func_calls: &Vec<bool>,
+    intervals: &mut HashMap<LirReg, LiveInterval>,
+) {
     let Some(entry) = intervals.get_mut(var) else {
         // if var not yet in intervals, add it
         intervals.insert(
@@ -114,6 +124,7 @@ fn update_var(var: &LirReg, pos: usize, intervals: &mut HashMap<LirReg, LiveInte
                 var: var.clone(),
                 start: pos,
                 end: pos,
+                contains_func_call: false
             },
         );
         return;
@@ -121,4 +132,89 @@ fn update_var(var: &LirReg, pos: usize, intervals: &mut HashMap<LirReg, LiveInte
 
     // update last occurrence
     entry.end = pos;
+
+    // update contains_func_call if needed
+    if func_calls[entry.start..entry.end].iter().any(|e| *e) {
+        entry.contains_func_call = true;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use crate::checker::check_lil;
+    use crate::jit::lir::compile_to_lir;
+    use crate::jit::lir::LirReg::Var;
+    use crate::parser::parse_lil_program;
+
+    use super::*;
+
+    fn create_prog(str: &str) -> LirFunction {
+        let prog = parse_lil_program(str).expect("Couldn't parse program");
+        let err = check_lil(&prog);
+        err.expect("Some checks failed!");
+        let first_func = prog.functions.first().unwrap();
+        compile_to_lir(first_func)
+    }
+
+    #[test]
+    fn loop_contains_func_call() {
+        let lir = create_prog(
+            r"
+            fn main() {
+                for let i = 0; i < 2; i = i+1 {
+                    show(0)
+                }
+            }
+        ",
+        );
+
+        let intervals = compute_live_intervals(&lir);
+
+        let around_function_calls: Vec<LirReg> = intervals
+            .iter()
+            .filter(|e| e.contains_func_call)
+            .map(|e| e.var.clone())
+            .collect();
+
+        assert_eq!(around_function_calls, [Var("i".to_string())])
+    }
+
+    #[test]
+    fn multi_vars() {
+        let lir = create_prog(
+            r"
+            fn main() {
+                let a = 1
+                let b = 2
+                let c = 3
+                show(a)
+                show(b)
+                let d = 2
+                show(b)
+                c + d
+            }
+        ",
+        );
+
+        let intervals = compute_live_intervals(&lir);
+
+        let around_function_calls: HashSet<LirReg> = intervals
+            .iter()
+            .filter(|e| e.contains_func_call)
+            .map(|e| e.var.clone())
+            .collect();
+
+        assert_eq!(
+            around_function_calls,
+            [
+                Var("b".to_string()),
+                Var("c".to_string()),
+                Var("d".to_string())
+            ]
+            .into_iter()
+            .collect()
+        )
+    }
 }
