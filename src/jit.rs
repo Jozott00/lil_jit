@@ -4,6 +4,7 @@
 // 4. codegendata .. function specific machine code data (such as mcodebase, mcodeptr, etc.)
 
 use armoured_rust::types::InstructionPointer;
+use log::info;
 
 use crate::ast::Program;
 use crate::jit::arch_def::arm64::Arm64;
@@ -101,6 +102,8 @@ impl<'a, D: RegDefinition> JIT<'a, D> {
 
     /// TODO: Refactor into own module
     fn compile_by_caller_addr(&'a mut self, caller: InstructionPointer) {
+        info!(target: "verbose", "---- \nJIT COMPILER TRIGGERED BY {caller:p}");
+
         let func_name = *self
             .jit_data
             .stub_ref_store
