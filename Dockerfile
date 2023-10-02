@@ -5,5 +5,10 @@ RUN apt-get update &&  \
     apt-get install -y libclang-dev
 
 WORKDIR /workspace
+COPY . .
 
-#RUN cargo build
+RUN cargo build --release
+
+ENTRYPOINT ["target/release/lil_jit"]
+CMD ["examples/mandelbrot.lil"]
+
