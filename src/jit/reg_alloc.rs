@@ -1,5 +1,4 @@
 use std::marker::PhantomData;
-use std::ptr;
 
 use crate::jit::arch_def::{RegDefinition, Register};
 use crate::jit::lir::LirFunction;
