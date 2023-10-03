@@ -1,0 +1,42 @@
+// A simple example that prints the lyrics of "99 bottles of beer".
+// It is not written in a specially elegant way but since the last three cases are their own functions it is quite good
+// to demonstrate that these functions are only compiled once they are needed.
+
+fn main() {
+    for let n = 99; n > 2; n = n-1 {
+        multiple_bottles(n)
+    }
+
+    two_bottles()
+    one_bottle()
+    no_bottle()
+}
+
+fn multiple_bottles(n) {
+    show(n)
+    showtext(" bottles of beer on the wall, ")
+    show(n)
+    showtextln(" bottles of beer.")
+
+    showtext("Take one down and pass it around, ")
+    show(n - 1)
+    showtextln(" bottles of beer on the wall.")
+    showtextln("")
+}
+
+fn two_bottles() {
+    showtextln("2 bottles of beer on the wall, 2 bottles of beer.")
+    showtextln("Take one down and pass it around 1 bottle of beer on the wall.")
+    showtextln("")
+}
+
+fn one_bottle() {
+    showtextln("1 bottle of beer on the wall, 1 bottle of beer.")
+    showtextln("Take one down and pass it around no more bottles of beer on the wall.")
+    showtextln("")
+}
+
+fn no_bottle() {
+    showtextln("No more bottles of beer on the wall, no more bottles of beer.")
+    showtextln("Go to the store and by some more, 99 bottles of beer on the wall.")
+}

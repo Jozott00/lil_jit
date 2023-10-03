@@ -1,0 +1,13 @@
+fn fac(n) {
+    if n <= 1: return 1
+    return n * fac(n-1)
+}
+
+
+fn main() {
+    for let i = 1; i < 12; i=i+1 {
+        show(i)
+        showtext("! = ")
+        showln(fac(i))
+    }
+}
