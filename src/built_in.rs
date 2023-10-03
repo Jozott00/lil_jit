@@ -1,9 +1,7 @@
 use std::collections::HashMap;
-use std::ffi::CStr;
 use std::io::Write;
 
 use lazy_static::lazy_static;
-use libc::c_char;
 
 use crate::{Writable, STDOUT};
 
@@ -61,25 +59,15 @@ extern "C" fn showascii_builtin(n: i32) -> i32 {
     DEFAULT_RETURN
 }
 
-extern "C" fn showtext_builtin(cptr: *const c_char) -> i32 {
-    if cptr.is_null() {
-        return DEFAULT_RETURN;
-    }
-
-    let c_str: &CStr = unsafe { CStr::from_ptr(cptr) };
-    print(format!("{}", c_str.to_str().unwrap()));
-
+extern "C" fn showtext_builtin(text_ptr: usize) -> i32 {
+    let str_ref: &String = unsafe { &*(text_ptr as *const String) };
+    print!("{}", str_ref);
     DEFAULT_RETURN
 }
 
-extern "C" fn showtextln_builtin(cptr: *const c_char) -> i32 {
-    if cptr.is_null() {
-        print("\n".to_string());
-        return DEFAULT_RETURN;
-    }
-
-    let c_str: &CStr = unsafe { CStr::from_ptr(cptr) };
-    print(format!("{}\n", c_str.to_str().unwrap()));
+extern "C" fn showtextln_builtin(text_ptr: usize) -> i32 {
+    let str_ref: &String = unsafe { &*(text_ptr as *const String) };
+    print!("{}\n", str_ref);
     DEFAULT_RETURN
 }
 
