@@ -14,7 +14,7 @@ COPY . .
 RUN cargo build --release
 
 # Second stage: Create the final image
-FROM ubuntu:latest
+FROM --platform=linux/arm64 ubuntu:latest
 
 # Copy the compiled executable from the first stage
 COPY --from=builder /usr/src/app/target/release/lil_jit /usr/local/bin/
