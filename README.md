@@ -1,3 +1,4 @@
+
 # LiL (Little Lang) JIT
 
 An excuse to play with JIT compilers. 🐣
@@ -36,6 +37,11 @@ $ sh lil_jit.sh example/mandelbrot.lil
 By running the bash script, you download the docker image from the docker hub repository and then run it.
 Additionally all necessary volume mounts are done for you and arguments are propagated
 to the docker container. After the execution, the created container gets automatically removed.
+
+Showcase of running `lil_jit` on an x86_64 computer:
+
+https://github.com/Jozott00/lil_jit/assets/12057307/5f249c6a-d200-4ebf-9036-ba6dc3a6643b
+
 
 #### Manually
 *Note: Building the docker image includes compiling the lil_jit compiler, which takes several minutes 
