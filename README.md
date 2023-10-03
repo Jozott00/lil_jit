@@ -19,12 +19,12 @@ cargo run examples/fib.txt
 
 ### Using Docker
 We provide a Docker image, representing the lil_jit compiler executable. This allows
-users, working on non-ARM64 computers, executing LiL programs on the lil_jit.
+users, working on non-ARM64 computers, executing LiL programs on the `lil_jit`.
 
 You may either download the prebuild docker image or build it on your own using the Dockerfile.
 
 **Notes for non ARM64 architectures:**
-- Docker requires an emulator such as QEMU to build run the image.
+- Docker requires an emulator such as QEMU to build and run the image.
 - The performance is significantly worse than on native ARM64
 
 
@@ -34,8 +34,7 @@ The `lil_jit.sh` can be used as it was the actual `lil_jit` executable.
 $ sh lil_jit.sh example/mandelbrot.lil
 ```
 By running the bash script, you download the docker image from the docker hub repository and then run it.
-Additionally all necessary volume mounts are done for you and arguments are propagated
-to the docker container. After the execution, the created container gets automatically removed.
+Additionally all necessary volume mounts are done for you and arguments are propagated to the docker container. After the execution, the created container gets automatically removed.
 
 #### Manually
 *Note: Building the docker image includes compiling the lil_jit compiler, which takes several minutes 
