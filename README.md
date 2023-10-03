@@ -12,9 +12,36 @@ An excuse to play with JIT compilers. 🐣
 
 ## Build and Run
 
+### On ARM64 with rust toolchain installed
 ```bash
 cargo run examples/fib.txt
 ```
+
+### Otherwise
+If you have a docker daemon running you can use our dockerfile to build and execute 
+`lil_jit` on any computer architecture. 
+
+**Notes for non ARM64 architectures:**
+- Docker requires an emulator such as QEMU to build run the image.
+- The compile time will be quite high (several minutes).
+
+
+#### Short Version
+```
+$ sh lil_jit.sh
+```
+By running the bash script, you build and run the docker image automatically.
+Additionally all necessary volume mounts are done for you and arguments are propagated
+to the docker container. After the execution, the created container gets automatically removed.
+
+*Note: To run a new version of lil_jit, you need to build the image manually (see below).*
+
+#### Manually
+```
+$ docker build -t lil_jit .
+$ docker run --rm -v <lil_file_path>:/app/<lil_file_path> lil_jit <lil_file_path>
+```
+
 
 ## Lil-lang
 
