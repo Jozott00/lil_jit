@@ -31,4 +31,4 @@ if [ $? -ne 0 ]; then
 fi
 
 # Run the Docker container, conditionally mount the file, and pass the arguments to the application inside it
-docker run --rm --platform linux/arm64 --name lil_jit $VOLUME_OPTION $IMAGE_NAME $APP_ARGS || { echo "Docker run failed"; exit 1; }
+docker run --rm --platform linux/arm64 --name lil_jit $VOLUME_OPTION $IMAGE_NAME $APP_ARGS
