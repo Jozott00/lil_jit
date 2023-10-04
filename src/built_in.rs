@@ -61,13 +61,13 @@ extern "C" fn showascii_builtin(n: i32) -> i32 {
 
 extern "C" fn showtext_builtin(text_ptr: usize) -> i32 {
     let str_ref: &String = unsafe { &*(text_ptr as *const String) };
-    print!("{}", str_ref);
+    print(format!("{}", str_ref));
     DEFAULT_RETURN
 }
 
 extern "C" fn showtextln_builtin(text_ptr: usize) -> i32 {
     let str_ref: &String = unsafe { &*(text_ptr as *const String) };
-    print!("{}\n", str_ref);
+    print(format!("{}\n", str_ref));
     DEFAULT_RETURN
 }
 
