@@ -252,13 +252,25 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
                                 cd.b_from_byte_offset(offset);
                             });
                         }
-                        LIR::JumpIfFalse(lir_reg, _) => {
-                            let creg = self.load_reg(lir_reg, D::temp1());
+                        LIR::JumpIfFalse(lir_operand, _) => match lir_operand {
+                            LirOperand::Reg(reg) => {
+                                let creg = self.load_reg(reg, D::temp1());
 
-                            self.code_info.codegen_data.patch_at(*ins_ptr, |cd| {
-                                cd.cbz_32_from_byte_offset(creg, offset);
-                            })
-                        }
+                                self.code_info.codegen_data.patch_at(*ins_ptr, |cd| {
+                                    cd.cbz_32_from_byte_offset(creg, offset);
+                                })
+                            }
+                            LirOperand::Constant(constant) => {
+                                self.code_info.codegen_data.patch_at(*ins_ptr, |cd| {
+                                    // if the constant is false (0), jump to offset
+                                    if *constant == 0 {
+                                        cd.b_from_byte_offset(offset)
+                                    } else {
+                                        cd.nop()
+                                    }
+                                })
+                            }
+                        },
                         _ => unimplemented!(),
                     }
                 }
@@ -283,7 +295,7 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
                 let offset = (label_index as i32 - cd.ins_count() as i32) * 4;
                 cd.b_from_byte_offset(offset);
             }
-            LIR::JumpIfFalse(lir_reg, label) => {
+            LIR::JumpIfFalse(lir_operand, label) => {
                 let Some(label_index) = self.label_indices.get(label) else {
                     let code_ptr = self.code_info.codegen_data.code_ptr();
                     match self.patch_requests.get_mut(label) {
@@ -299,10 +311,19 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
                 };
 
                 let label_index = *label_index;
-                let creg = self.load_reg(lir_reg, D::temp1());
-                let cd = self.cd();
-                let offset = label_index as i32 - cd.ins_count() as i32;
-                cd.cbz_32_from_byte_offset(creg, offset);
+                let offset = label_index as i32 - self.cd().ins_count() as i32;
+
+                match lir_operand {
+                    LirOperand::Reg(reg) => {
+                        let creg = self.load_reg(reg, D::temp1());
+                        self.cd().cbz_32_from_byte_offset(creg, offset);
+                    }
+                    LirOperand::Constant(constant) => {
+                        if *constant == 0 {
+                            self.cd().b_from_byte_offset(offset)
+                        }
+                    }
+                }
             }
             LIR::Call(dest, func_name, args) => {
                 let dreg = self.get_dst(dest, D::temp1());

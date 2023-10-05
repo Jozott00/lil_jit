@@ -14,6 +14,7 @@ use crate::jit::funcinfo::FuncInfo;
 use crate::jit::jitdata::JitData;
 use crate::jit::lir::compile_to_lir;
 use crate::jit::reg_alloc::alloc_reg;
+use crate::settings::JIT_SETTINGS;
 
 pub mod arch_def;
 mod codegendata;
@@ -84,7 +85,10 @@ impl<'a, D: RegDefinition> JIT<'a, D> {
             .remove(funcname)
             .expect("Tried to compile unknown function");
 
-        let lir = compile_to_lir(uncompiled_func);
+        let mut lir = compile_to_lir(uncompiled_func);
+        if JIT_SETTINGS.const_opt() {
+            lir = lir.optimize_constant_single_assigns();
+        }
         log::info!(target: "dump-ir", "------\nLIR DUMP FOR {}:\n{}\n------\n", funcname, lir);
 
         let reg_mapping = alloc_reg::<D>(&lir);

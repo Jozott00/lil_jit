@@ -4,6 +4,7 @@ include!("pass/assignment.rs");
 include!("pass/for_loop.rs");
 include!("pass/builtin_calls.rs");
 include!("pass/function.rs");
+include!("pass/if_else.rs");
 
 use std::io::{Cursor, Read};
 use std::sync::Mutex;

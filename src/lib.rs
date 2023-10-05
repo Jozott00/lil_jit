@@ -16,6 +16,7 @@ mod jit;
 mod location;
 pub mod logger;
 mod parser;
+pub mod settings;
 mod visitor;
 
 pub enum Writable {

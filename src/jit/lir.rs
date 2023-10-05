@@ -1,4 +1,6 @@
 mod compiler;
+mod helper;
+pub mod optimize;
 
 use std::fmt;
 use std::fmt::{write, Display, Formatter};
@@ -40,7 +42,7 @@ pub enum LIR {
     // control flow
     Label(Label),
     Jump(Label),
-    JumpIfFalse(LirReg, Label),
+    JumpIfFalse(LirOperand, Label),
 
     // func
     Call(LirReg, String, Vec<LirOperand>),
