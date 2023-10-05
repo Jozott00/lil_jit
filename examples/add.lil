@@ -1,9 +1,0 @@
-fn add(a, b) {
-    let res = a + b
-    showln(res)
-    return res
-}
-
-fn main() {
-    return add(3, 4)
-}

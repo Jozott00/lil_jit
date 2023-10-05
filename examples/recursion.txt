@@ -1,9 +1,0 @@
-fn test(n) {
-    if n < 1: return 0
-    showln(n)
-    test(n-1)
-}
-
-fn main() {
-    test(100)
-}
