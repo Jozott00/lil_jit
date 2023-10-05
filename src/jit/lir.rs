@@ -40,7 +40,7 @@ pub enum LIR {
     JumpIfFalse(LirReg, Label),
 
     // func
-    Call(LirReg, String, Vec<LirReg>),
+    Call(LirReg, String, Vec<LirOperand>),
     // dest, func_name, args
     CallText(LirReg, bool, String),
     Return(LirOperand),
@@ -219,9 +219,8 @@ impl<'a> LirCompiler<'a> {
 
                 let mut arg_dests = Vec::new();
                 for e in &func_data.arguments {
-                    let e_res = self.flat_expr(e);
-                    let e_dest = self.load_flat_result(e_res);
-                    arg_dests.push(e_dest);
+                    let e_arg = self.flat_expr(e);
+                    arg_dests.push(e_arg);
                 }
                 let dest = self.new_tmp();
                 let instr = Call(

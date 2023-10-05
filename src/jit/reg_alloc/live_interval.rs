@@ -72,7 +72,9 @@ pub fn compute_live_intervals(func: &LirFunction) -> LiveIntervals {
             LIR::Call(dest, _, args) => {
                 update_var(dest, i, &call_positions, &mut intervals);
                 for a in args {
-                    update_var(a, i, &call_positions, &mut intervals);
+                    if let LirOperand::Reg(a) = a {
+                        update_var(a, i, &call_positions, &mut intervals);
+                    }
                 }
                 call_positions[i] = true;
             }

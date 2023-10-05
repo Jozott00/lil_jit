@@ -330,9 +330,16 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
                 let (args_reg, args_spilled) = args.split_at(args.len().min(D::arg_regs().len()));
 
                 // move arg registers to argument passing registers
-                for (i, arg_reg) in args_reg.iter().enumerate() {
-                    let r = self.load_reg(arg_reg, i as Register);
-                    self.mov_reg(i as Register, r)
+                for (i, arg_operand) in args_reg.iter().enumerate() {
+                    match arg_operand {
+                        LirOperand::Reg(arg_operand) => {
+                            let r = self.load_reg(arg_operand, i as Register);
+                            self.mov_reg(i as Register, r)
+                        }
+                        LirOperand::Constant(c) => {
+                            self.cd().mov_arbitrary_imm(i as Register, *c as u64, false)
+                        }
+                    };
                 }
 
                 // calculate required stack space (with alignment)
@@ -343,10 +350,19 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
                 }
 
                 // store args that are passed via stack
-                for (i, arg_reg) in args_spilled.iter().enumerate() {
-                    let r = self.load_reg(arg_reg, D::temp3());
-                    self.cd()
-                        .str_32_imm_unsigned_offset(r, 31, (i * 4) as UImm14);
+                for (i, arg_operand) in args_spilled.iter().enumerate() {
+                    match arg_operand {
+                        LirOperand::Reg(arg_operand) => {
+                            let r = self.load_reg(arg_operand, D::temp3());
+                            self.cd()
+                                .str_32_imm_unsigned_offset(r, 31, (i * 4) as UImm14);
+                        }
+                        LirOperand::Constant(c) => {
+                            self.cd().mov_arbitrary_imm(D::temp3(), *c as u64, false);
+                            self.cd()
+                                .str_32_imm_unsigned_offset(D::temp3(), 31, (i * 4) as UImm14);
+                        }
+                    };
                 }
 
                 if is_stub_call {
