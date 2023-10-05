@@ -3,7 +3,7 @@ mod helper;
 pub mod optimize;
 
 use std::fmt;
-use std::fmt::{write, Display, Formatter};
+use std::fmt::{Display, Formatter};
 
 use crate::ast;
 use crate::ast::ExprKind::StringLiteral;
@@ -11,8 +11,7 @@ use crate::ast::{BinaryOp, Expr, ExprKind, FuncDec, Stmt, StmtKind};
 use crate::jit::lir::compiler::LirCompiler;
 use crate::jit::lir::LirReg::{Tmp, Var};
 use crate::jit::lir::LIR::{
-    Assign, BinaryExpr, Breakpoint, Call, CallText, InputArgLoad, Jump, JumpIfFalse, LoadConst,
-    Return,
+    Assign, BinaryExpr, Breakpoint, Call, CallText, InputArgLoad, Jump, JumpIfFalse, Return,
 };
 
 pub fn compile_to_lir<'a>(func: &'a FuncDec<'a>) -> LirFunction {
@@ -37,7 +36,6 @@ pub enum LIR {
     // mem movement
     InputArgLoad(LirReg, usize), // (destination, argument index)
     Assign(LirReg, LirOperand),
-    LoadConst(LirReg, i32),
 
     // control flow
     Label(Label),
@@ -94,7 +92,6 @@ impl<'a> fmt::Display for LIR {
             }
             InputArgLoad(dst, i) => write!(f, "InputArgLoad({}, {})", dst, i),
             LIR::Assign(reg_a, reg_b) => write!(f, "Assign({}, {})", reg_a, reg_b),
-            LIR::LoadConst(reg, const_val) => write!(f, "LoadConst({}, {})", reg, const_val),
             LIR::Label(label) => write!(f, "Label({})", label),
             LIR::Jump(label) => write!(f, "Jump({})", label),
             LIR::JumpIfFalse(reg, label) => write!(f, "JumpIfFalse({}, {})", reg, label),

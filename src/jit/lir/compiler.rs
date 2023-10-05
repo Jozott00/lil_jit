@@ -187,20 +187,6 @@ impl<'a> LirCompiler<'a> {
         }
     }
 
-    /// Produces a LoadConst in a new temp register if
-    /// the flat_result is a Constant. Otherwise it returns
-    /// the LirReg of the flat_result.
-    fn load_flat_result(&mut self, flat_result: LirOperand) -> LirReg {
-        match flat_result {
-            LirOperand::Reg(reg) => reg,
-            LirOperand::Constant(c) => {
-                let dest = self.new_tmp();
-                self.instrs.push(LoadConst(dest.clone(), c));
-                dest
-            }
-        }
-    }
-
     fn new_tmp(&mut self) -> LirReg {
         let tmp = Tmp(self.tmp_count);
         self.tmp_count += 1;

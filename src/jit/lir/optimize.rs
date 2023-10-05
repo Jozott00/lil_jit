@@ -1,6 +1,6 @@
 use super::*;
 use crate::jit::lir::helper::calc_constant;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 impl LirFunction {
     /// Optimizes assigns of constants that are never reassigned

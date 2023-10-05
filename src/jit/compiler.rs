@@ -7,9 +7,7 @@ use armoured_rust::instruction_encoding::branch_exception_system::unconditional_
 use armoured_rust::instruction_encoding::branch_exception_system::unconditional_branch_register::UnconditionalBranchRegister;
 use armoured_rust::instruction_encoding::common_aliases::CommonAliases;
 use armoured_rust::instruction_encoding::data_proc_imm::add_substract_imm::AddSubtractImmediate;
-use armoured_rust::instruction_encoding::data_proc_imm::logical_imm::LogicalImmediate;
 use armoured_rust::instruction_encoding::data_proc_imm::mov_wide_imm::MovWideImmediate;
-use armoured_rust::instruction_encoding::data_proc_reg::add_sub_shift_reg::AddSubtractShiftedRegister;
 use armoured_rust::instruction_encoding::data_proc_reg::cond_compare_imm::ConditionalCompareImmediate;
 use armoured_rust::instruction_encoding::data_proc_reg::conditional_select::ConditionalSelect;
 use armoured_rust::instruction_encoding::data_proc_reg::data_proc_three_src::DataProcessingThreeSource;
@@ -25,7 +23,7 @@ use armoured_rust::types::condition::Condition;
 use armoured_rust::types::condition::Condition::{EQ, GE, GT, LE, LT, NE};
 use armoured_rust::types::register::WZR;
 use armoured_rust::types::shifts::Shift1;
-use armoured_rust::types::{Imm12, Imm9, InstructionPointer, UImm12, UImm14, UImm16, UImm32, HW};
+use armoured_rust::types::{Imm12, Imm9, InstructionPointer, UImm12, UImm14, UImm16, HW};
 use log::{info, warn};
 
 use crate::ast::BinaryOp;
@@ -216,20 +214,6 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
                         }
                     }
                     LirOperand::Constant(c) => self.cd().mov_arbitrary_imm(dreg, *c as u64, false),
-                }
-
-                self.store_dst(dest, dreg);
-            }
-            LIR::LoadConst(dest, num) => {
-                let dreg = self.get_dst(dest, D::temp1());
-                let cd = self.cd();
-
-                let lower_16 = (*num & 0xFFFF) as u16;
-                let upper_16 = ((*num >> 16) & 0xFFFF) as u16;
-
-                cd.movz_32_imm(dreg, lower_16);
-                if upper_16 != 0 {
-                    cd.movk_32_imm_lsl(dreg, upper_16, HW::LSL16);
                 }
 
                 self.store_dst(dest, dreg);
@@ -683,23 +667,6 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
         match find_shift(constant) {
             None => default(self),
             Some((c, s)) => f(self, c, s),
-        }
-    }
-
-    fn lhs_const_with_shift_or_default<F: FnOnce(Imm12, Shift1)>(
-        &mut self,
-        dest: Register,
-        op: &BinaryOp,
-        lhs: i32,
-        rhs: Register,
-        f: F,
-    ) {
-        match find_shift(lhs) {
-            None => {
-                self.cd().mov_arbitrary_imm(D::temp1(), lhs as u64, false);
-                self.bin_op_no_const(dest, op, D::temp1(), rhs)
-            }
-            Some((c, s)) => f(c, s),
         }
     }
 
