@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::hash::Hash;
 
-use crate::jit::lir::{Label, LirFunction, LirReg, LIR};
+use crate::jit::lir::{Label, LirFunction, LirOperand, LirReg, LIR};
 
 /// Vector of `LiveInterval`, representing all live intervals in functions.
 pub type LiveIntervals = Vec<LiveInterval>;
@@ -44,8 +44,14 @@ pub fn compute_live_intervals(func: &LirFunction) -> LiveIntervals {
         match instr {
             LIR::BinaryExpr(dest, _, lhs, rhs) => {
                 update_var(dest, i, &call_positions, &mut intervals);
-                update_var(lhs, i, &call_positions, &mut intervals);
-                update_var(rhs, i, &call_positions, &mut intervals);
+
+                if let LirOperand::Reg(lhs) = lhs {
+                    update_var(lhs, i, &call_positions, &mut intervals);
+                }
+
+                if let LirOperand::Reg(rhs) = rhs {
+                    update_var(rhs, i, &call_positions, &mut intervals);
+                }
             }
             LIR::InputArgLoad(dest, _) => {
                 update_var(dest, i, &call_positions, &mut intervals);

@@ -7,7 +7,10 @@ use armoured_rust::instruction_encoding::branch_exception_system::unconditional_
 use armoured_rust::instruction_encoding::branch_exception_system::unconditional_branch_register::UnconditionalBranchRegister;
 use armoured_rust::instruction_encoding::common_aliases::CommonAliases;
 use armoured_rust::instruction_encoding::data_proc_imm::add_substract_imm::AddSubtractImmediate;
+use armoured_rust::instruction_encoding::data_proc_imm::logical_imm::LogicalImmediate;
 use armoured_rust::instruction_encoding::data_proc_imm::mov_wide_imm::MovWideImmediate;
+use armoured_rust::instruction_encoding::data_proc_reg::add_sub_shift_reg::AddSubtractShiftedRegister;
+use armoured_rust::instruction_encoding::data_proc_reg::cond_compare_imm::ConditionalCompareImmediate;
 use armoured_rust::instruction_encoding::data_proc_reg::conditional_select::ConditionalSelect;
 use armoured_rust::instruction_encoding::data_proc_reg::data_proc_three_src::DataProcessingThreeSource;
 use armoured_rust::instruction_encoding::data_proc_reg::data_proc_two_src::DataProcessingTwoSource;
@@ -18,9 +21,11 @@ use armoured_rust::instruction_encoding::loads_and_stores::load_store_reg_pre_po
 use armoured_rust::instruction_encoding::loads_and_stores::load_store_reg_unscaled_imm::LoadStoreRegisterUnscaledImmediate;
 use armoured_rust::instruction_encoding::loads_and_stores::load_store_register_unsigned_imm::LoadStoreRegisterUnsignedImmediate;
 
+use armoured_rust::types::condition::Condition;
 use armoured_rust::types::condition::Condition::{EQ, GE, GT, LE, LT, NE};
 use armoured_rust::types::register::WZR;
-use armoured_rust::types::{Imm12, Imm9, InstructionPointer, UImm12, UImm14, UImm16, HW};
+use armoured_rust::types::shifts::Shift1;
+use armoured_rust::types::{Imm12, Imm9, InstructionPointer, UImm12, UImm14, UImm16, UImm32, HW};
 use log::{info, warn};
 
 use crate::ast::BinaryOp;
@@ -30,7 +35,7 @@ use crate::jit::codegendata::{CodegenData, InstrCount};
 use crate::jit::codeinfo::CodeInfo;
 use crate::jit::funcinfo::FuncInfo;
 use crate::jit::jitdata::JitData;
-use crate::jit::lir::{Label, LirReg, LIR};
+use crate::jit::lir::{Label, LirOperand, LirReg, LIR};
 use crate::jit::reg_alloc::reg_off::RegOff;
 use crate::jit::stub::compile_stub;
 
@@ -162,90 +167,26 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
         // TODO: some way without coping the whole function ir?
         match instr {
             LIR::BinaryExpr(dest, op, lhs, rhs) => {
-                let lhs = self.load_reg(lhs, D::temp1());
-                let rhs = self.load_reg(rhs, D::temp2());
                 let dreg = self.get_dst(dest, D::temp1());
+                match (lhs, rhs) {
+                    (LirOperand::Reg(lhs), LirOperand::Reg(rhs)) => {
+                        let lhs = self.load_reg(lhs, D::temp1());
+                        let rhs = self.load_reg(rhs, D::temp2());
+                        self.bin_op_no_const(dreg, op, lhs, rhs)
+                    }
 
-                let cd = self.cd();
-
-                match op {
-                    BinaryOp::Add => {
-                        cd.add_32_reg(dreg, lhs, rhs);
+                    (LirOperand::Constant(lhs), LirOperand::Reg(rhs)) => {
+                        let rhs = self.load_reg(rhs, D::temp2());
+                        self.bin_op_lhs_const(dreg, op, *lhs, rhs)
                     }
-                    BinaryOp::Minus => {
-                        cd.sub_32_reg(dreg, lhs, rhs);
+                    (LirOperand::Reg(lhs), LirOperand::Constant(rhs)) => {
+                        let lhs = self.load_reg(lhs, D::temp1());
+                        self.bin_op_rhs_const(dreg, op, lhs, *rhs)
                     }
-                    BinaryOp::Multi => {
-                        cd.mul_32_reg(dreg, lhs, rhs);
-                    }
-                    BinaryOp::Divide => {
-                        cd.sdiv_32(dreg, lhs, rhs);
-                    }
-                    BinaryOp::Modulo => {
-                        cd.sdiv_32(D::temp3(), lhs, rhs);
-                        cd.msub_32(dreg, D::temp3(), rhs, lhs)
-                    }
-                    BinaryOp::Equals => {
-                        // FIXME: This code could be more readable with cmp and cset.
-                        // This code is functionally equal but less readable, also because csinc
-                        // needs to invert the condition.
-                        cd.subs_32_reg(WZR, lhs, rhs);
-                        cd.csinc_32(dreg, WZR, WZR, NE);
-                    }
-                    BinaryOp::NotEqual => {
-                        // FIXME: This code could be more readable with cmp and cset.
-                        // This code is functionally equal but less readable, also because csinc
-                        // needs to invert the condition.
-                        cd.subs_32_reg(WZR, lhs, rhs);
-                        cd.csinc_32(dreg, WZR, WZR, EQ);
-                    }
-                    BinaryOp::Greater => {
-                        // FIXME: This code could be more readable with cmp and cset.
-                        // This code is functionally equal but less readable, also because csinc
-                        // needs to invert the condition.
-                        cd.subs_32_reg(WZR, lhs, rhs);
-                        cd.csinc_32(dreg, WZR, WZR, LE);
-                    }
-                    BinaryOp::GreaterEqual => {
-                        // FIXME: This code could be more readable with cmp and cset.
-                        // This code is functionally equal but less readable, also because csinc
-                        // needs to invert the condition.
-                        cd.subs_32_reg(WZR, lhs, rhs);
-                        cd.csinc_32(dreg, WZR, WZR, LT);
-                    }
-                    BinaryOp::Less => {
-                        // FIXME: This code could be more readable with cmp and cset.
-                        // This code is functionally equal but less readable, also because csinc
-                        // needs to invert the condition.
-                        cd.subs_32_reg(WZR, lhs, rhs);
-                        cd.csinc_32(dreg, WZR, WZR, GE);
-                    }
-                    BinaryOp::LessEqual => {
-                        // FIXME: This code could be more readable with cmp and cset.
-                        // This code is functionally equal but less readable, also because csinc
-                        // needs to invert the condition.
-                        cd.subs_32_reg(WZR, lhs, rhs);
-                        cd.csinc_32(dreg, WZR, WZR, GT);
-                    }
-                    BinaryOp::LogicalOr => {
-                        // FIXME: This code could be more readable with cmp and cset.
-                        // This code is functionally equal but less readable, also because csinc
-                        // needs to invert the condition.
-                        cd.orr_32(dreg, lhs, rhs, None);
-                        cd.subs_32_imm(WZR, dreg, 0);
-                        cd.csinc_32(dreg, WZR, WZR, EQ);
-                    }
-                    BinaryOp::LogicalAnd => {
-                        // FIXME: This code could be more readable with cmp and cset.
-                        // This code is functionally equal but less readable, also because csinc
-                        // needs to invert the condition.
-                        cd.and_32(dreg, lhs, rhs, None);
-                        cd.subs_32_imm(WZR, dreg, 0);
-                        cd.csinc_32(dreg, WZR, WZR, EQ);
+                    (LirOperand::Constant(_), LirOperand::Constant(_)) => {
+                        panic!("Not possible, constant folding should have fold that!")
                     }
                 }
-
-                // if dest is offset, store dreg on stack at offset
                 self.store_dst(dest, dreg);
             }
             LIR::InputArgLoad(dest, i) => {
@@ -482,6 +423,239 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
         }
     }
 
+    fn bin_op_no_const(&mut self, dest: Register, op: &BinaryOp, lhs: Register, rhs: Register) {
+        let cd = self.cd();
+
+        match op {
+            BinaryOp::Add => {
+                cd.add_32_reg(dest, lhs, rhs);
+            }
+            BinaryOp::Minus => {
+                cd.sub_32_reg(dest, lhs, rhs);
+            }
+            BinaryOp::Multi => {
+                cd.mul_32_reg(dest, lhs, rhs);
+            }
+            BinaryOp::Divide => {
+                cd.sdiv_32(dest, lhs, rhs);
+            }
+            BinaryOp::Modulo => {
+                cd.sdiv_32(D::temp3(), lhs, rhs);
+                cd.msub_32(dest, D::temp3(), rhs, lhs)
+            }
+            BinaryOp::Equals => {
+                // FIXME: This code could be more readable with cmp and cset.
+                // This code is functionally equal but less readable, also because csinc
+                // needs to invert the condition.
+                cd.subs_32_reg(WZR, lhs, rhs);
+                cd.csinc_32(dest, WZR, WZR, NE);
+            }
+            BinaryOp::NotEqual => {
+                // FIXME: This code could be more readable with cmp and cset.
+                // This code is functionally equal but less readable, also because csinc
+                // needs to invert the condition.
+                cd.subs_32_reg(WZR, lhs, rhs);
+                cd.csinc_32(dest, WZR, WZR, EQ);
+            }
+            BinaryOp::Greater => {
+                // FIXME: This code could be more readable with cmp and cset.
+                // This code is functionally equal but less readable, also because csinc
+                // needs to invert the condition.
+                cd.subs_32_reg(WZR, lhs, rhs);
+                cd.csinc_32(dest, WZR, WZR, LE);
+            }
+            BinaryOp::GreaterEqual => {
+                // FIXME: This code could be more readable with cmp and cset.
+                // This code is functionally equal but less readable, also because csinc
+                // needs to invert the condition.
+                cd.subs_32_reg(WZR, lhs, rhs);
+                cd.csinc_32(dest, WZR, WZR, LT);
+            }
+            BinaryOp::Less => {
+                // FIXME: This code could be more readable with cmp and cset.
+                // This code is functionally equal but less readable, also because csinc
+                // needs to invert the condition.
+                cd.subs_32_reg(WZR, lhs, rhs);
+                cd.csinc_32(dest, WZR, WZR, GE);
+            }
+            BinaryOp::LessEqual => {
+                // FIXME: This code could be more readable with cmp and cset.
+                // This code is functionally equal but less readable, also because csinc
+                // needs to invert the condition.
+                cd.subs_32_reg(WZR, lhs, rhs);
+                cd.csinc_32(dest, WZR, WZR, GT);
+            }
+            BinaryOp::LogicalOr => {
+                // FIXME: This code could be more readable with cmp and cset.
+                // This code is functionally equal but less readable, also because csinc
+                // needs to invert the condition.
+                cd.orr_32(dest, lhs, rhs, None);
+                cd.subs_32_imm(WZR, dest, 0);
+                cd.csinc_32(dest, WZR, WZR, EQ);
+            }
+            BinaryOp::LogicalAnd => {
+                // FIXME: This code could be more readable with cmp and cset.
+                // This code is functionally equal but less readable, also because csinc
+                // needs to invert the condition.
+                cd.subs_32_imm(WZR, lhs, 0); // is lhs != 0?
+                cd.ccmp_32_imm(rhs, 0, 0b0100, NE); // upper conditions if rhs != 0, 0b0100 (zero flag) otherwise
+                cd.csinc_32(dest, WZR, WZR, EQ); // same as cmp(dest, NE)
+            }
+        }
+    }
+
+    fn bin_op_lhs_const(&mut self, dest: Register, op: &BinaryOp, lhs: i32, rhs: Register) {
+        let default = |c: &mut Compiler<D>| {
+            c.cd().mov_arbitrary_imm(D::temp1(), lhs as u64, false);
+            c.bin_op_no_const(dest, op, D::temp1(), rhs)
+        };
+
+        match op {
+            BinaryOp::Add => self.test_shiftable_const(lhs, default, |comp, c, s| {
+                comp.cd().add_32_imm_lsl(dest, rhs, c, s)
+            }),
+            BinaryOp::Minus => self.test_shiftable_const(lhs, default, |comp, lhs, s| {
+                // 3 + a == -a + 3
+                comp.cd().neg_32_reg(rhs, rhs, None);
+                comp.cd().add_32_imm_lsl(dest, rhs, lhs, s);
+            }),
+            // sadly no straight forward optimization available
+            BinaryOp::Multi => default(self),
+            // sadly no straight forward optimization available
+            BinaryOp::Divide => default(self),
+            // sadly no straight forward optimization available
+            BinaryOp::Modulo => default(self),
+            BinaryOp::Equals => self.test_shiftable_const(lhs, default, |comp, lhs, s| {
+                // 3 == a === a == 3
+                let cd = comp.cd();
+                cd.subs_32_imm_lsl(WZR, rhs, lhs, s);
+                cd.csinc_32(dest, WZR, WZR, Condition::NE)
+            }),
+            BinaryOp::NotEqual => self.test_shiftable_const(lhs, default, |comp, lhs, s| {
+                // 3 != a === a != 3
+                let cd = comp.cd();
+                cd.subs_32_imm_lsl(WZR, rhs, lhs, s);
+                cd.csinc_32(dest, WZR, WZR, Condition::EQ)
+            }),
+            BinaryOp::Greater => self.test_shiftable_const(lhs, default, |comp, lhs, s| {
+                let cd = comp.cd();
+                cd.subs_32_imm_lsl(WZR, rhs, lhs, s);
+                cd.csinc_32(dest, WZR, WZR, Condition::GE)
+            }),
+            BinaryOp::GreaterEqual => self.test_shiftable_const(lhs, default, |comp, lhs, s| {
+                let cd = comp.cd();
+                cd.subs_32_imm_lsl(WZR, rhs, lhs, s);
+                cd.csinc_32(dest, WZR, WZR, Condition::GT)
+            }),
+            BinaryOp::Less => self.test_shiftable_const(lhs, default, |comp, lhs, s| {
+                let cd = comp.cd();
+                cd.subs_32_imm_lsl(WZR, rhs, lhs, s);
+                cd.csinc_32(dest, WZR, WZR, Condition::LE)
+            }),
+            BinaryOp::LessEqual => self.test_shiftable_const(lhs, default, |comp, lhs, s| {
+                let cd = comp.cd();
+                cd.subs_32_imm_lsl(WZR, rhs, lhs, s);
+                cd.csinc_32(dest, WZR, WZR, Condition::LT)
+            }),
+            // and with immediate will fail for some constant values
+            BinaryOp::LogicalAnd => {
+                let cd = self.cd();
+                if lhs != 0 {
+                    // result is true iff rhs is true
+                    cd.subs_32_imm(WZR, rhs, 0);
+                    cd.csinc_32(dest, WZR, WZR, Condition::EQ)
+                } else {
+                    // result is false as constant is false
+                    cd.movz_32_imm(dest, 0)
+                };
+            }
+            BinaryOp::LogicalOr => {
+                let cd = self.cd();
+                if lhs != 0 {
+                    // result is true as constant is true
+                    cd.movz_32_imm(dest, 1);
+                } else {
+                    // result is true iff rhs is true
+                    cd.subs_32_imm(WZR, rhs, 0);
+                    cd.csinc_32(dest, WZR, WZR, Condition::EQ)
+                }
+            }
+        }
+    }
+
+    fn bin_op_rhs_const(&mut self, dest: Register, op: &BinaryOp, lhs: Register, rhs: i32) {
+        let default = |c: &mut Compiler<D>| {
+            c.cd().mov_arbitrary_imm(D::temp2(), rhs as u64, false);
+            c.bin_op_no_const(dest, op, lhs, D::temp2())
+        };
+
+        match op {
+            // use lhs const as a + b == b + a
+            BinaryOp::Add => self.bin_op_lhs_const(dest, op, rhs, lhs),
+            BinaryOp::Minus => self.test_shiftable_const(rhs, default, |comp, rhs, s| {
+                let cd = comp.cd();
+                cd.sub_32_imm_lsl(dest, lhs, rhs, s)
+            }),
+            BinaryOp::Multi => self.bin_op_lhs_const(dest, op, rhs, lhs),
+            // sadly no straight forward optimization available
+            BinaryOp::Divide => default(self),
+            BinaryOp::Modulo => default(self),
+            BinaryOp::Equals => self.bin_op_lhs_const(dest, op, rhs, lhs),
+            BinaryOp::NotEqual => self.bin_op_lhs_const(dest, op, rhs, lhs),
+            BinaryOp::Greater => self.test_shiftable_const(rhs, default, |comp, rhs, s| {
+                let cd = comp.cd();
+                cd.subs_32_imm_lsl(WZR, lhs, rhs, s);
+                cd.csinc_32(dest, WZR, WZR, Condition::LE)
+            }),
+            BinaryOp::GreaterEqual => self.test_shiftable_const(rhs, default, |comp, rhs, s| {
+                let cd = comp.cd();
+                cd.subs_32_imm_lsl(WZR, lhs, rhs, s);
+                cd.csinc_32(dest, WZR, WZR, Condition::LT)
+            }),
+            BinaryOp::Less => self.test_shiftable_const(rhs, default, |comp, rhs, s| {
+                let cd = comp.cd();
+                cd.subs_32_imm_lsl(WZR, lhs, rhs, s);
+                cd.csinc_32(dest, WZR, WZR, Condition::GE)
+            }),
+            BinaryOp::LessEqual => self.test_shiftable_const(rhs, default, |comp, rhs, s| {
+                let cd = comp.cd();
+                cd.subs_32_imm_lsl(WZR, lhs, rhs, s);
+                cd.csinc_32(dest, WZR, WZR, Condition::GT)
+            }),
+            BinaryOp::LogicalAnd => self.bin_op_lhs_const(dest, op, rhs, lhs),
+            BinaryOp::LogicalOr => self.bin_op_lhs_const(dest, op, rhs, lhs),
+        }
+    }
+
+    fn test_shiftable_const<DF: FnOnce(&mut Self), F: FnOnce(&mut Self, Imm12, Shift1)>(
+        &mut self,
+        constant: i32,
+        default: DF,
+        f: F,
+    ) {
+        match find_shift(constant) {
+            None => default(self),
+            Some((c, s)) => f(self, c, s),
+        }
+    }
+
+    fn lhs_const_with_shift_or_default<F: FnOnce(Imm12, Shift1)>(
+        &mut self,
+        dest: Register,
+        op: &BinaryOp,
+        lhs: i32,
+        rhs: Register,
+        f: F,
+    ) {
+        match find_shift(lhs) {
+            None => {
+                self.cd().mov_arbitrary_imm(D::temp1(), lhs as u64, false);
+                self.bin_op_no_const(dest, op, D::temp1(), rhs)
+            }
+            Some((c, s)) => f(c, s),
+        }
+    }
+
     fn mov_reg(&mut self, dest: Register, src: Register) {
         if dest != src {
             self.cd().mov_64_reg(dest, src)
@@ -539,4 +713,19 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
     fn cd(&mut self) -> &mut CodegenData {
         return &mut self.code_info.codegen_data;
     }
+}
+
+fn find_shift(value: i32) -> Option<(Imm12, Shift1)> {
+    // Check if the value fits in 12 bits without shifting
+    if value >= 0 && value <= 0xFFF {
+        return Some((value as Imm12, Shift1::LSL0));
+    }
+
+    // Check for 12-bit shift
+    if (value & 0xFFF) == 0 && (value >> 12) <= 0xFFF {
+        return Some(((value >> 12) as Imm12, Shift1::LSL12));
+    }
+
+    // Value cannot be represented as a shifted 12-bit immediate
+    None
 }

@@ -1,5 +1,5 @@
 use std::fmt;
-use std::fmt::Formatter;
+use std::fmt::{write, Display, Formatter};
 
 use crate::ast;
 use crate::ast::ExprKind::StringLiteral;
@@ -27,7 +27,7 @@ impl LirFunction {
 #[derive(Debug, Eq, PartialEq, Hash, Clone)]
 pub enum LIR {
     // TODO: Split up into op specific instructions?
-    BinaryExpr(LirReg, ast::BinaryOp, LirReg, LirReg),
+    BinaryExpr(LirReg, ast::BinaryOp, LirOperand, LirOperand),
 
     // mem movement
     InputArgLoad(LirReg, usize), // (destination, argument index)
@@ -55,6 +55,12 @@ pub enum LirReg {
     Tmp(u32),
 }
 
+#[derive(Debug, Eq, PartialEq, Clone, Hash, Ord, PartialOrd)]
+pub enum LirOperand {
+    Reg(LirReg),
+    Constant(i32),
+}
+
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Hash)]
 pub struct Label(u32);
 
@@ -63,11 +69,6 @@ struct LirCompiler<'a> {
     instrs: Vec<LIR>,
     tmp_count: u32,
     label_count: u32,
-}
-
-enum FlatResult {
-    Reg(LirReg),
-    Constant(i32),
 }
 
 impl<'a> LirCompiler<'a> {
@@ -191,15 +192,15 @@ impl<'a> LirCompiler<'a> {
         }
     }
 
-    fn flat_expr(&mut self, node: &'a Expr) -> FlatResult {
+    fn flat_expr(&mut self, node: &'a Expr) -> LirOperand {
         match &node.kind {
             ExprKind::IntegerLiteral(num) => {
                 // let dest = self.new_tmp();
                 // self.instrs.push(LoadConst(dest.clone(), *num));
                 // dest
-                FlatResult::Constant(*num)
+                LirOperand::Constant(*num)
             }
-            ExprKind::StringLiteral(_) => FlatResult::Reg(self.new_tmp()),
+            ExprKind::StringLiteral(_) => LirOperand::Reg(self.new_tmp()),
             ExprKind::FunctionCall(func_data) => {
                 if func_data.function_name.name == "showtext" {
                     let dest = self.new_tmp();
@@ -208,7 +209,7 @@ impl<'a> LirCompiler<'a> {
                     };
                     self.instrs
                         .push(CallText(dest.clone(), false, text.to_string()));
-                    return FlatResult::Reg(dest);
+                    return LirOperand::Reg(dest);
                 }
                 if func_data.function_name.name == "showtextln" {
                     let dest = self.new_tmp();
@@ -217,7 +218,7 @@ impl<'a> LirCompiler<'a> {
                     };
                     self.instrs
                         .push(CallText(dest.clone(), true, text.to_string()));
-                    return FlatResult::Reg(dest);
+                    return LirOperand::Reg(dest);
                 }
 
                 let mut arg_dests = Vec::new();
@@ -233,28 +234,29 @@ impl<'a> LirCompiler<'a> {
                     arg_dests,
                 );
                 self.instrs.push(instr);
-                FlatResult::Reg(dest)
+                LirOperand::Reg(dest)
             }
             ExprKind::BinaryExpr(lhs, op, rhs) => {
                 let lhs_dest = self.flat_expr(lhs);
                 let rhs_dest = self.flat_expr(rhs);
 
                 match (&lhs_dest, &rhs_dest) {
-                    (FlatResult::Constant(lhs_c), FlatResult::Constant(rhs_c)) => {
-                        return FlatResult::Constant(calc_constant(op, *lhs_c, *rhs_c))
+                    (LirOperand::Constant(lhs_c), LirOperand::Constant(rhs_c)) => {
+                        return LirOperand::Constant(calc_constant(op, *lhs_c, *rhs_c))
                     }
                     _ => {}
                 }
 
-                let lhs_dest = self.load_flat_result(lhs_dest);
-                let rhs_dest = self.load_flat_result(rhs_dest);
+                // TODO: Remove
+                // let lhs_dest = LirOperand::Reg(self.load_flat_result(lhs_dest));
+                // let rhs_dest = LirOperand::Reg(self.load_flat_result(rhs_dest));
 
                 let dest = self.new_tmp();
                 self.instrs
                     .push(BinaryExpr(dest.clone(), (*op).clone(), lhs_dest, rhs_dest));
-                FlatResult::Reg(dest)
+                LirOperand::Reg(dest)
             }
-            ExprKind::Identifier(name) => FlatResult::Reg(Var(name.name.to_string())),
+            ExprKind::Identifier(name) => LirOperand::Reg(Var(name.name.to_string())),
             ExprKind::Grouped(expr) => self.flat_expr(expr),
         }
     }
@@ -262,10 +264,10 @@ impl<'a> LirCompiler<'a> {
     /// Produces a LoadConst in a new temp register if
     /// the flat_result is a Constant. Otherwise it returns
     /// the LirReg of the flat_result.
-    fn load_flat_result(&mut self, flat_result: FlatResult) -> LirReg {
+    fn load_flat_result(&mut self, flat_result: LirOperand) -> LirReg {
         match flat_result {
-            FlatResult::Reg(reg) => reg,
-            FlatResult::Constant(c) => {
+            LirOperand::Reg(reg) => reg,
+            LirOperand::Constant(c) => {
                 let dest = self.new_tmp();
                 self.instrs.push(LoadConst(dest.clone(), c));
                 dest
@@ -306,7 +308,13 @@ fn calc_constant(op: &BinaryOp, lhs: i32, rhs: i32) -> i32 {
         BinaryOp::LessEqual => (lhs <= rhs) as i32,
         BinaryOp::LogicalAnd => (lhs != 0 && rhs != 0) as i32,
         BinaryOp::LogicalOr => (lhs != 0 || rhs != 0) as i32,
-        BinaryOp::Modulo => lhs % rhs,
+        BinaryOp::Modulo => {
+            if rhs == 0 {
+                lhs
+            } else {
+                lhs % rhs
+            }
+        }
     }
 }
 
@@ -360,6 +368,19 @@ impl fmt::Display for LirFunction {
             .collect::<Vec<String>>()
             .join("\n");
         write!(f, "{}", joined_str)
+    }
+}
+
+impl Display for LirOperand {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            LirOperand::Reg(reg) => {
+                write!(f, "{reg}")
+            }
+            LirOperand::Constant(c) => {
+                write!(f, "Constant({c})")
+            }
+        }
     }
 }
 
@@ -432,11 +453,19 @@ mod tests {
         let expected_lir = vec![
             LoadConst(Tmp(0), 5),
             Assign(Var("a".to_string()), Tmp(0)),
-            LoadConst(Tmp(1), 2),
-            BinaryExpr(Tmp(2), BinaryOp::Add, Var("a".to_string()), Tmp(1)),
-            LoadConst(Tmp(3), 2),
-            BinaryExpr(Tmp(4), BinaryOp::Multi, Tmp(3), Tmp(2)),
-            Assign(Var("b".to_string()), Tmp(4)),
+            BinaryExpr(
+                Tmp(1),
+                BinaryOp::Add,
+                LirOperand::Reg(Var("a".to_string())),
+                LirOperand::Constant(2),
+            ),
+            BinaryExpr(
+                Tmp(2),
+                BinaryOp::Multi,
+                LirOperand::Constant(2),
+                LirOperand::Reg(Tmp(1)),
+            ),
+            Assign(Var("b".to_string()), Tmp(2)),
             Assign(Var("a".to_string()), Var("b".to_string())),
             Return(Var("b".to_string())),
         ];
