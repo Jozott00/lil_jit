@@ -417,10 +417,16 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
                 self.store_dst(dest, dreg);
             }
             LIR::Return(src) => {
-                let src = self.load_reg(src, D::temp1());
-                let cd = self.cd();
+                match src {
+                    LirOperand::Reg(src) => {
+                        let src = self.load_reg(src, D::temp1());
+                        self.cd().mov_64_reg(D::ret_reg(), src);
+                    }
+                    LirOperand::Constant(c) => {
+                        self.cd().mov_arbitrary_imm(D::ret_reg(), *c as u64, false)
+                    }
+                }
 
-                cd.mov_64_reg(0, src);
                 self.compile_epilog()
             }
             LIR::Breakpoint(line) => self.cd().brk(*line as UImm16),

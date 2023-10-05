@@ -43,7 +43,7 @@ pub enum LIR {
     Call(LirReg, String, Vec<LirReg>),
     // dest, func_name, args
     CallText(LirReg, bool, String),
-    Return(LirReg),
+    Return(LirOperand),
 
     // debug
     Breakpoint(usize),
@@ -103,9 +103,7 @@ impl<'a> LirCompiler<'a> {
         }
 
         // else add return 0
-        let tmp = self.new_tmp();
-        self.instrs.push(LoadConst(tmp.clone(), 0));
-        self.instrs.push(Return(tmp));
+        self.instrs.push(Return(LirOperand::Constant(0)));
     }
     fn flat_stmt(&mut self, node: &'a Stmt) {
         match &node.kind {
@@ -183,7 +181,6 @@ impl<'a> LirCompiler<'a> {
             }
             StmtKind::Return(expr) => {
                 let src = self.flat_expr(expr);
-                let src = self.load_flat_result(src);
                 let instr = Return(src);
                 self.instrs.push(instr)
             }
@@ -400,11 +397,8 @@ mod tests {
         let first_func = prog.functions.first().unwrap();
         let lir = compile_to_lir(first_func);
 
-        assert_eq!(lir.instrs().len(), 2);
-        let expected_lir = vec![
-            LIR::LoadConst(LirReg::Tmp(0), 0),
-            LIR::Return(LirReg::Tmp(0)),
-        ];
+        assert_eq!(lir.instrs().len(), 1);
+        let expected_lir = vec![LIR::Return(LirOperand::Constant(0))];
         assert_eq!(lir.0, expected_lir);
     }
 
@@ -422,8 +416,7 @@ mod tests {
 
         let expected_lir = vec![
             LIR::Assign(LirReg::Var("a".to_string()), LirOperand::Constant(5)),
-            LIR::LoadConst(LirReg::Tmp(0), 0),
-            LIR::Return(LirReg::Tmp(0)),
+            LIR::Return(LirOperand::Constant(0)),
         ];
 
         assert_eq!(lir.0, expected_lir);
@@ -460,7 +453,7 @@ mod tests {
             ),
             Assign(Var("b".to_string()), LirOperand::Reg(Tmp(1))),
             Assign(Var("a".to_string()), LirOperand::Reg(Var("b".to_string()))),
-            Return(Var("b".to_string())),
+            Return(LirOperand::Reg(Var("b".to_string()))),
         ];
 
         let str = lir
