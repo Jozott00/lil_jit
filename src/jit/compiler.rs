@@ -206,12 +206,16 @@ impl<'a, 'b, D: RegDefinition> Compiler<'a, 'b, D> {
                 self.store_dst(dest, dreg);
             }
             LIR::Assign(dest, src) => {
-                let src = self.load_reg(src, D::temp1());
                 let dreg = self.get_dst(dest, D::temp1());
 
-                let cd = self.cd();
-                if src != dreg {
-                    cd.mov_64_reg(dreg, src);
+                match src {
+                    LirOperand::Reg(src) => {
+                        let src = self.load_reg(src, D::temp1());
+                        if src != dreg {
+                            self.cd().mov_64_reg(dreg, src);
+                        }
+                    }
+                    LirOperand::Constant(c) => self.cd().mov_arbitrary_imm(dreg, *c as u64, false),
                 }
 
                 self.store_dst(dest, dreg);

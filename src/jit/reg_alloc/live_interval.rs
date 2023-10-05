@@ -58,7 +58,10 @@ pub fn compute_live_intervals(func: &LirFunction) -> LiveIntervals {
             }
             LIR::Assign(dest, src) => {
                 update_var(dest, i, &call_positions, &mut intervals);
-                update_var(src, i, &call_positions, &mut intervals);
+
+                if let LirOperand::Reg(src) = src {
+                    update_var(src, i, &call_positions, &mut intervals);
+                }
             }
             LIR::LoadConst(dest, _) => {
                 update_var(dest, i, &call_positions, &mut intervals);

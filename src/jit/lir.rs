@@ -31,7 +31,7 @@ pub enum LIR {
 
     // mem movement
     InputArgLoad(LirReg, usize), // (destination, argument index)
-    Assign(LirReg, LirReg),
+    Assign(LirReg, LirOperand),
     LoadConst(LirReg, i32),
 
     // control flow
@@ -111,7 +111,6 @@ impl<'a> LirCompiler<'a> {
         match &node.kind {
             StmtKind::Assignment(_, var, expr) => {
                 let src = self.flat_expr(expr);
-                let src = self.load_flat_result(src);
                 let instr = Assign(Var(var.name.to_string()), src);
                 self.instrs.push(instr);
             }
@@ -246,10 +245,6 @@ impl<'a> LirCompiler<'a> {
                     }
                     _ => {}
                 }
-
-                // TODO: Remove
-                // let lhs_dest = LirOperand::Reg(self.load_flat_result(lhs_dest));
-                // let rhs_dest = LirOperand::Reg(self.load_flat_result(rhs_dest));
 
                 let dest = self.new_tmp();
                 self.instrs
@@ -426,10 +421,9 @@ mod tests {
         let lir = compile_to_lir(first_func);
 
         let expected_lir = vec![
-            LIR::LoadConst(LirReg::Tmp(0), 5),
-            LIR::Assign(LirReg::Var("a".to_string()), LirReg::Tmp(0)),
-            LIR::LoadConst(LirReg::Tmp(1), 0),
-            LIR::Return(LirReg::Tmp(1)),
+            LIR::Assign(LirReg::Var("a".to_string()), LirOperand::Constant(5)),
+            LIR::LoadConst(LirReg::Tmp(0), 0),
+            LIR::Return(LirReg::Tmp(0)),
         ];
 
         assert_eq!(lir.0, expected_lir);
@@ -451,22 +445,21 @@ mod tests {
         let lir = compile_to_lir(first_func);
 
         let expected_lir = vec![
-            LoadConst(Tmp(0), 5),
-            Assign(Var("a".to_string()), Tmp(0)),
+            Assign(Var("a".to_string()), LirOperand::Constant(5)),
             BinaryExpr(
-                Tmp(1),
+                Tmp(0),
                 BinaryOp::Add,
                 LirOperand::Reg(Var("a".to_string())),
                 LirOperand::Constant(2),
             ),
             BinaryExpr(
-                Tmp(2),
+                Tmp(1),
                 BinaryOp::Multi,
                 LirOperand::Constant(2),
-                LirOperand::Reg(Tmp(1)),
+                LirOperand::Reg(Tmp(0)),
             ),
-            Assign(Var("b".to_string()), Tmp(2)),
-            Assign(Var("a".to_string()), Var("b".to_string())),
+            Assign(Var("b".to_string()), LirOperand::Reg(Tmp(1))),
+            Assign(Var("a".to_string()), LirOperand::Reg(Var("b".to_string()))),
             Return(Var("b".to_string())),
         ];
 

@@ -161,7 +161,7 @@ impl CodegenData {
         for i in 0..4 {
             let chunk = ((imm >> (16 * i)) & 0xFFFF) as UImm16;
 
-            if chunk == 0 && i != 0 {
+            if chunk == 0 && (i != 0) {
                 if fill_with_nops {
                     self.nop()
                 }
