@@ -8,12 +8,18 @@ use log::LevelFilter;
 use lil_jit;
 use lil_jit::logger::LILLOGGER;
 use lil_jit::run;
+use lil_jit::settings::JIT_SETTINGS;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
     filename: String,
 
+    // JIT SETTINGS
+    #[arg(long, short, default_value = "true")]
+    optimize_constants: Option<bool>,
+
+    // LOGGING
     #[arg(long)]
     dump_ast: bool,
 
@@ -35,6 +41,12 @@ struct Cli {
 
 fn main() {
     let cli = Cli::parse();
+
+    // SETTINGS
+
+    JIT_SETTINGS.set_const_opt(cli.optimize_constants.unwrap_or(true));
+
+    // LOGGING
     LILLOGGER.verbose.store(cli.verbose, Ordering::Relaxed);
     LILLOGGER.dump_ast.store(cli.dump_ast, Ordering::Relaxed);
     LILLOGGER.dump_ir.store(cli.dump_ir, Ordering::Relaxed);
