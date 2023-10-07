@@ -17,6 +17,7 @@ The JIT compiler targets ARM64 and compiles functions on the first invocation.
     - Caller-saved registers for variables that do not live across function calls
     - Uses heuristic-based spilling if no more registers are available
 - Code compilation to binary encoded 64-bit Arm.
+    - Uses our self-written assembler library [ArmouredRust](https://github.com/Jozott00/ARMoured_rust)
   - Using Arm64 standard ABI
   - Using stub for calling non-compiled functions
 
@@ -31,7 +32,7 @@ cargo run examples/mandelbrot.lil
 We provide a Docker image, representing the lil_jit compiler executable. This allows
 users, working on non-ARM64 computers, executing LiL programs on the `lil_jit`.
 
-You may either download the prebuild docker image or build it on your own using the Dockerfile.
+You may either download the prebuilt docker image or build it on your own using the Dockerfile.
 
 **Notes for non ARM64 architectures:**
 - Docker requires an emulator such as QEMU to build and run the image.
