@@ -3,19 +3,28 @@
 
 An excuse to play with JIT compilers. 🐣
 
+The JIT compiler targets ARM64 and compiles functions on the first invocation.
+
 ## Features
 
-- A parser build with `nom` for a self designed language.
-- Some error checking like missing main function on the AST (but no typechecking because the language doesn't require any).
+- A parser built with `nom` for a self-designed language.
+- Some error checking like missing the main function on the AST or variable scoping (but no type-checking because the language doesn't require any).
 - A custom architecture independent Assembly like IR (Intermediate representation).
+- Constant folding on IR
+- Constant propagation optimization on IR
 - Fast register allocation with LSRA.
-- Code compilation to binary encoded 64-Bit Arm.
+    - Callee-saved registers for variables with lifespan across function calls
+    - Caller-saved registers for variables that do not live across function calls
+    - Uses heuristic-based spilling if no more registers are available
+- Code compilation to binary encoded 64-bit Arm.
+  - Using Arm64 standard ABI
+  - Using stub for calling non-compiled functions
 
 ## Build and Run
 
 ### On ARM64 with rust toolchain installed
 ```bash
-cargo run examples/fib.txt
+cargo run examples/mandelbrot.lil
 ```
 
 ### Using Docker
