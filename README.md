@@ -49,7 +49,11 @@ Additionally all necessary volume mounts are done for you and arguments are prop
 
 Showcase of running `lil_jit` on an x86_64 computer:
 
-https://github.com/Jozott00/lil_jit/assets/12057307/5f249c6a-d200-4ebf-9036-ba6dc3a6643b
+
+
+https://github.com/Jozott00/lil_jit/assets/12057307/b04db5fd-038a-4564-8c51-b8c76fb82659
+
+
 
 
 #### Manually
